@@ -1,0 +1,618 @@
+{
+  "scenarios": {
+    "alive": {
+      "match": [],
+      "base": {
+        "id": "r-t0d0a1",
+        "repo": {
+          "owner": "you",
+          "name": "todo-of-the-dead",
+          "url": "https://github.com/you/todo-of-the-dead",
+          "default_branch": "main",
+          "commit_sha": "9f2c1e7"
+        },
+        "status": "summoning",
+        "stack": "react-vite",
+        "deployable": true,
+        "attempt": 1,
+        "phase_message": "Summoning the spirits",
+        "autopsy": {
+          "verdict": "warnings",
+          "stack": "react-vite",
+          "app_dir": ".",
+          "summary": "A Vite React app that should build; it has no lockfile, so installs may drift.",
+          "findings": [
+            {
+              "id": "stack-detected",
+              "severity": "ok",
+              "title": "React app built with Vite",
+              "detail": "package.json has a build script and depends on vite.",
+              "fix": null,
+              "file": "package.json"
+            },
+            {
+              "id": "no-lockfile",
+              "severity": "warn",
+              "title": "No lockfile",
+              "detail": "Without package-lock.json, npm may install newer versions than you tested.",
+              "fix": "Run npm install and commit package-lock.json.",
+              "file": null
+            }
+          ],
+          "source": "rules+llm"
+        },
+        "ghost": null,
+        "live_url": null,
+        "badge_markdown": null,
+        "pinned": false,
+        "pulse": null,
+        "created_at": "2026-11-04T07:30:02Z",
+        "alive_at": null,
+        "expires_at": null,
+        "server_time": "2026-11-04T07:30:02Z"
+      },
+      "frames": [
+        {
+          "at_ms": 0,
+          "patch": {
+            "phase_message": "Summoning the spirits",
+            "server_time": "2026-11-04T07:30:02Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:02Z",
+              "text": "Autopsy complete: react-vite, 1 warning",
+              "kind": "system"
+            },
+            {
+              "ts": "2026-11-04T07:30:03Z",
+              "text": "Build queued",
+              "kind": "system"
+            }
+          ]
+        },
+        {
+          "at_ms": 2000,
+          "patch": {
+            "status": "building",
+            "phase_message": "Cloning the grave",
+            "server_time": "2026-11-04T07:30:04Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:04Z",
+              "text": "Cloning into 'todo-of-the-dead'...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:04Z",
+              "text": "remote: Enumerating objects: 142, done.",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:05Z",
+              "text": "Receiving objects: 100% (142/142), 98.30 KiB | 1.2 MiB/s, done.",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 5000,
+          "patch": {
+            "phase_message": "Installing dependencies",
+            "server_time": "2026-11-04T07:30:07Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:06Z",
+              "text": "> npm install",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:07Z",
+              "text": "npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory.",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:08Z",
+              "text": "npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:09Z",
+              "text": "added 214 packages, and audited 215 packages in 6s",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:09Z",
+              "text": "41 packages are looking for funding",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:10Z",
+              "text": "found 0 vulnerabilities",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 10000,
+          "patch": {
+            "phase_message": "Building",
+            "server_time": "2026-11-04T07:30:12Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:11Z",
+              "text": "> todo-of-the-dead@0.0.0 build",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:11Z",
+              "text": "> vite build",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "vite v5.4.10 building for production...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "transforming...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:13Z",
+              "text": "✓ 38 modules transformed.",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "rendering chunks...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "computing gzip size...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "dist/index.html                   0.46 kB │ gzip:  0.30 kB",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "dist/assets/index-B3kQ9xYz.css    1.42 kB │ gzip:  0.73 kB",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "dist/assets/index-D8f2LmPa.js   143.21 kB │ gzip: 46.05 kB",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:14Z",
+              "text": "✓ built in 1.84s",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 14000,
+          "patch": {
+            "phase_message": "Uploading",
+            "server_time": "2026-11-04T07:30:16Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:15Z",
+              "text": "Uploading dist/ to the graveyard",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:15Z",
+              "text": "upload: dist/index.html to graves/r-t0d0a1/index.html",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:16Z",
+              "text": "upload: dist/assets/index-B3kQ9xYz.css to graves/r-t0d0a1/assets/index-B3kQ9xYz.css",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:16Z",
+              "text": "upload: dist/assets/index-D8f2LmPa.js to graves/r-t0d0a1/assets/index-D8f2LmPa.js",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:17Z",
+              "text": "Upload complete: 3 files",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 16000,
+          "patch": {
+            "status": "checking_pulse",
+            "phase_message": "Checking for a pulse",
+            "pulse": {
+              "attempts": 1,
+              "max_attempts": 20
+            },
+            "live_url": "https://d2abc.cloudfront.net/r-t0d0a1/",
+            "server_time": "2026-11-04T07:30:18Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:18Z",
+              "text": "Pulse check 1/20: GET https://d2abc.cloudfront.net/r-t0d0a1/ -> 404 (CloudFront still warming up)",
+              "kind": "pulse"
+            }
+          ]
+        },
+        {
+          "at_ms": 18000,
+          "patch": {
+            "pulse": {
+              "attempts": 2,
+              "max_attempts": 20
+            },
+            "server_time": "2026-11-04T07:30:20Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:20Z",
+              "text": "Pulse check 2/20: GET https://d2abc.cloudfront.net/r-t0d0a1/ -> 200 OK",
+              "kind": "pulse"
+            }
+          ]
+        },
+        {
+          "at_ms": 20000,
+          "patch": {
+            "status": "alive",
+            "phase_message": "It lives",
+            "badge_markdown": "[![Resurrected](https://xyz.lambda-url.us-east-1.on.aws/badge/r-t0d0a1.svg)](https://d1ui.cloudfront.net/r/r-t0d0a1)",
+            "alive_at": "2026-11-04T07:30:22Z",
+            "expires_at": "2026-11-04T07:50:22Z",
+            "server_time": "2026-11-04T07:30:22Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:22Z",
+              "text": "It lives! Open for 20 minutes.",
+              "kind": "system"
+            }
+          ]
+        }
+      ]
+    },
+    "ghost": {
+      "match": [
+        "broken"
+      ],
+      "base": {
+        "id": "r-b4d0p7",
+        "repo": {
+          "owner": "you",
+          "name": "broken-potion",
+          "url": "https://github.com/you/broken-potion",
+          "default_branch": "main",
+          "commit_sha": "3ab7d02"
+        },
+        "status": "summoning",
+        "stack": "react-vite",
+        "deployable": true,
+        "attempt": 1,
+        "phase_message": "Summoning the spirits",
+        "autopsy": {
+          "verdict": "healthy",
+          "stack": "react-vite",
+          "app_dir": ".",
+          "summary": "A Vite React app with a build script and a lockfile. It looks ready to build.",
+          "findings": [
+            {
+              "id": "stack-detected",
+              "severity": "ok",
+              "title": "React app built with Vite",
+              "detail": "package.json has a build script and depends on vite.",
+              "fix": null,
+              "file": "package.json"
+            },
+            {
+              "id": "lockfile-found",
+              "severity": "ok",
+              "title": "Lockfile present",
+              "detail": "package-lock.json pins your dependency versions.",
+              "fix": null,
+              "file": "package-lock.json"
+            }
+          ],
+          "source": "rules+llm"
+        },
+        "ghost": null,
+        "live_url": null,
+        "badge_markdown": null,
+        "pinned": false,
+        "pulse": null,
+        "created_at": "2026-11-04T07:30:02Z",
+        "alive_at": null,
+        "expires_at": null,
+        "server_time": "2026-11-04T07:30:02Z"
+      },
+      "frames": [
+        {
+          "at_ms": 0,
+          "patch": {
+            "server_time": "2026-11-04T07:30:02Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:02Z",
+              "text": "Autopsy complete: react-vite, healthy",
+              "kind": "system"
+            },
+            {
+              "ts": "2026-11-04T07:30:03Z",
+              "text": "Build queued",
+              "kind": "system"
+            }
+          ]
+        },
+        {
+          "at_ms": 2000,
+          "patch": {
+            "status": "building",
+            "phase_message": "Cloning the grave",
+            "server_time": "2026-11-04T07:30:04Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:04Z",
+              "text": "Cloning into 'broken-potion'...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:05Z",
+              "text": "Receiving objects: 100% (87/87), 41.02 KiB | 900.00 KiB/s, done.",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 5000,
+          "patch": {
+            "phase_message": "Installing dependencies",
+            "server_time": "2026-11-04T07:30:07Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:06Z",
+              "text": "> npm install",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:08Z",
+              "text": "added 189 packages, and audited 190 packages in 5s",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:08Z",
+              "text": "found 0 vulnerabilities",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 8000,
+          "patch": {
+            "phase_message": "Building",
+            "server_time": "2026-11-04T07:30:10Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:10Z",
+              "text": "> broken-potion@0.0.0 build",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:10Z",
+              "text": "> vite build",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:11Z",
+              "text": "vite v5.4.10 building for production...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:11Z",
+              "text": "transforming...",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "✓ 6 modules transformed.",
+              "kind": "build"
+            }
+          ]
+        },
+        {
+          "at_ms": 11000,
+          "patch": {
+            "status": "failed",
+            "phase_message": "The spirits refused",
+            "server_time": "2026-11-04T07:30:13Z",
+            "ghost": {
+              "cause": "Your code imports 'react-router-dom', but it is not listed in package.json, so npm never installed it and the build could not find it.",
+              "fix": "Add react-router-dom to your dependencies, commit the updated package.json and package-lock.json, then retry.",
+              "command": "npm install react-router-dom",
+              "confidence": "high",
+              "source": "llm",
+              "raw_tail": [
+                "transforming...",
+                "✓ 6 modules transformed.",
+                "x Build failed in 612ms",
+                "error during build:",
+                "[vite]: Rollup failed to resolve import \"react-router-dom\" from \"/codebuild/output/src/src/App.jsx\".",
+                "Could not resolve import 'react-router-dom' from src/App.jsx",
+                "Could not resolve import 'react-router-dom' from src/pages/Home.jsx",
+                "    at viteWarn (file:///codebuild/output/src/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:65839:17)",
+                "npm error Lifecycle script `build` failed with error:",
+                "npm error code 1"
+              ]
+            }
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "x Build failed in 612ms",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "error during build:",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "[vite]: Rollup failed to resolve import \"react-router-dom\" from \"/codebuild/output/src/src/App.jsx\".",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "Could not resolve import 'react-router-dom' from src/App.jsx",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "Could not resolve import 'react-router-dom' from src/pages/Home.jsx",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:12Z",
+              "text": "    at viteWarn (file:///codebuild/output/src/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:65839:17)",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:13Z",
+              "text": "npm error Lifecycle script `build` failed with error:",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:13Z",
+              "text": "npm error code 1",
+              "kind": "build"
+            },
+            {
+              "ts": "2026-11-04T07:30:13Z",
+              "text": "Build failed: command exited with code 1",
+              "kind": "system"
+            }
+          ]
+        }
+      ],
+      "retry_scenario": "alive"
+    },
+    "cannot_rise": {
+      "match": [
+        "api",
+        "python"
+      ],
+      "base": {
+        "id": "r-c0ffin",
+        "repo": {
+          "owner": "you",
+          "name": "expense-api",
+          "url": "https://github.com/you/expense-api",
+          "default_branch": "main",
+          "commit_sha": "c41e9b8"
+        },
+        "status": "cannot_rise",
+        "stack": "python",
+        "deployable": false,
+        "attempt": 1,
+        "phase_message": "This grave cannot be raised",
+        "autopsy": {
+          "verdict": "blocked",
+          "stack": "python",
+          "app_dir": ".",
+          "summary": "This is a FastAPI backend. Resurrect can only host static sites and React apps, so it cannot be raised here.",
+          "findings": [
+            {
+              "id": "stack-python",
+              "severity": "block",
+              "title": "Python backend detected",
+              "detail": "requirements.txt lists fastapi and uvicorn. Resurrect only hosts static files, so server code cannot run here.",
+              "fix": "Deploy the API on a host that runs Python, or add a static or React frontend to try again.",
+              "file": "requirements.txt"
+            },
+            {
+              "id": "env-committed",
+              "severity": "warn",
+              "title": ".env file committed",
+              "detail": "A .env file is in your repository, which may expose passwords or API keys to anyone who can see it.",
+              "fix": "Remove .env from git, add it to .gitignore and rotate any keys it contained.",
+              "file": ".env"
+            },
+            {
+              "id": "no-pinned-requirements",
+              "severity": "warn",
+              "title": "Dependencies are not pinned",
+              "detail": "requirements.txt has no exact versions and there is no lock file, so installs may pull newer, breaking versions.",
+              "fix": "Run pip freeze > requirements.txt, or use a lock file tool such as pip-tools or poetry.",
+              "file": "requirements.txt"
+            }
+          ],
+          "source": "rules+llm"
+        },
+        "ghost": null,
+        "live_url": null,
+        "badge_markdown": null,
+        "pinned": false,
+        "pulse": null,
+        "created_at": "2026-11-04T07:30:02Z",
+        "alive_at": null,
+        "expires_at": null,
+        "server_time": "2026-11-04T07:30:03Z"
+      },
+      "frames": [
+        {
+          "at_ms": 0,
+          "patch": {
+            "status": "cannot_rise",
+            "deployable": false,
+            "stack": "python",
+            "phase_message": "This grave cannot be raised",
+            "server_time": "2026-11-04T07:30:03Z"
+          },
+          "log_lines": [
+            {
+              "ts": "2026-11-04T07:30:03Z",
+              "text": "Autopsy blocked: Python backend detected. No build started.",
+              "kind": "system"
+            }
+          ]
+        }
+      ]
+    },
+    "rate_limited": {
+      "match": [
+        "greedy"
+      ],
+      "error": {
+        "status": 429,
+        "body": {
+          "error": {
+            "code": "rate_limited",
+            "message": "Too many resurrections from your spot in the graveyard. Please wait before trying again.",
+            "retry_after_s": 1800
+          }
+        }
+      }
+    }
+  }
+}
