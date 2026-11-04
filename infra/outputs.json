@@ -9,6 +9,11 @@
     "type": "string",
     "value": "resurrect-847460071971"
   },
+  "ecr_apps_uri": {
+    "sensitive": false,
+    "type": "string",
+    "value": "847460071971.dkr.ecr.us-east-1.amazonaws.com/resurrect-apps"
+  },
   "graves_distribution_id": {
     "sensitive": false,
     "type": "string",

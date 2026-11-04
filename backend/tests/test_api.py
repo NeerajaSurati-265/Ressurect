@@ -74,12 +74,37 @@ def test_post_bad_inputs(client, started):
     assert client.post("/resurrections", json={"repo_url": 5}).json()["error"]["code"] == "invalid_url"
 
 
-def test_post_uses_first_forwarded_ip_and_admin_header(client, started, monkeypatch):
+def with_source_ip(ip):
+    """Wrap the app so scope['aws.event'] looks like a Function URL event (Mangum does this in Lambda)."""
+    async def app(scope, receive, send):
+        if scope["type"] == "http" and ip is not None:
+            scope["aws.event"] = {"requestContext": {"http": {"sourceIp": ip}}}
+        await main.app(scope, receive, send)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_post_uses_source_ip_not_forwarded_for(client, started, monkeypatch):
     fake_autopsy(monkeypatch)
     seen = []
     monkeypatch.setattr(limits, "check", lambda ip, admin: seen.append((ip, admin)))
-    post(client, **{"X-Forwarded-For": "203.0.113.9, 10.0.0.1", "X-Resurrect-Admin": "tok"})
-    assert seen == [("203.0.113.9", "tok")]
+    post(with_source_ip("198.51.100.7"), **{"X-Forwarded-For": "203.0.113.9, 10.0.0.1", "X-Resurrect-Admin": "tok"})
+    post(client, **{"X-Forwarded-For": "203.0.113.9"})  # no sourceIp in the event
+    assert seen == [("198.51.100.7", "tok"), ("unknown", None)]
+
+
+def test_spoofed_forwarded_for_cannot_dodge_rate_limit(started, monkeypatch):
+    from datetime import datetime, timezone
+    from test_limits import FakeCounters
+
+    fake_autopsy(monkeypatch)
+    counters = FakeCounters()
+    monkeypatch.setattr(limits, "_table", lambda: counters)
+    monkeypatch.setattr(limits, "_admin_secret", lambda: "s3cret")
+    monkeypatch.setattr(limits, "_now", lambda: datetime(2026, 11, 4, 7, 15, 0, tzinfo=timezone.utc))
+    c = with_source_ip("198.51.100.7")
+    codes = [post(c, **{"X-Forwarded-For": "10.0.0.%d" % i}).status_code for i in range(4)]
+    assert codes[3] == 429 and 429 not in codes[:3]
+    assert len(set(counters.calls)) == 1  # one rate-limit key for all four spoofed values
 
 
 def test_post_kill_switch(client, started, monkeypatch):

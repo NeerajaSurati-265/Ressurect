@@ -23,7 +23,11 @@ SUMMARY_TIMEOUT_S = 6
 LOG_LINES = 80
 RAW_TAIL_LINES = 10
 MAX_EXTRA_FINDINGS = 3
-FORBIDDEN_COMMANDS = ("rm ", "sudo", "git push --force", "git reset --hard", "git rebase")
+# Names use the allowed charset, but must start with a letter, digit, @, . or _ so a bare ">" or "-x" is no name.
+_NAME = r"[@a-zA-Z0-9._][@a-zA-Z0-9._/=<>~^-]*"
+# Only these exact forms are ever shown as a fix command; everything else becomes null.
+ALLOWED_COMMAND = re.compile(
+    r"^(?:npm (?:install|i)(?: (?:-D|--save-dev))?(?: %(n)s)+|npm run %(n)s|pip install(?: %(n)s)+)$" % {"n": _NAME})
 
 GHOST_SYSTEM_PROMPT = """You diagnose failed deployments of student web projects for Resurrect.
 You receive the detected stack, autopsy findings, package.json and the last lines of the build log,
@@ -72,10 +76,8 @@ class _GhostReply(BaseModel):
 def _safe_command(cmd: Optional[str]) -> Optional[str]:
     if not isinstance(cmd, str) or not cmd.strip():
         return None
-    low = " " + cmd.lower().strip() + " "
-    if any(bad in low for bad in FORBIDDEN_COMMANDS):
-        return None
-    return cmd.strip()
+    cmd = cmd.strip()
+    return cmd if ALLOWED_COMMAND.fullmatch(cmd) else None
 
 
 ERROR_HINT = re.compile(

@@ -224,6 +224,22 @@ def test_function_failed_gives_ghost_with_reason_code_and_frees_the_slot(aws, mo
     assert aws.ecr.calls  # image removed too
 
 
+def test_failed_backend_reads_last_50_log_lines_before_deleting_the_log_group(aws, monkeypatch):
+    aws.lam.functions["rz-r-abc123"] = {}
+    aws.lam.fn_state, aws.lam.code, aws.lam.reason = "Failed", "Runtime.ExitError", "exit 1"
+    aws.logs.lines = ["boot line %03d" % i for i in range(120)]
+    seen = ghost_spy(monkeypatch)
+    rec = backend_rec()
+    rec.function_url, rec.function_created_at = URL, "2026-11-04T09:00:00Z"
+    statemachine.advance(rec, "https://api", NOW + timedelta(seconds=5))
+    assert rec.res.status == "failed"
+    kinds = [c[0] for c in aws.logs.calls]
+    assert "filter_log_events" in kinds and "delete_log_group" in kinds
+    assert kinds.index("filter_log_events") < kinds.index("delete_log_group")   # read first, then delete
+    assert "boot line 119" in seen["user"] and "boot line 070" in seen["user"]    # the last 50 ...
+    assert "boot line 069" not in seen["user"]                                   # ... and no more
+
+
 def test_pending_over_three_minutes_fails(aws, monkeypatch):
     aws.lam.functions["rz-r-abc123"] = {}
     ghost_spy(monkeypatch)

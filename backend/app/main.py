@@ -53,12 +53,11 @@ async def _catch_all(request: Request, call_next):
         return error_response(ApiException("internal", "Something went wrong on our side. Please try again."))
 
 
-def client_ip(request: Request) -> Optional[str]:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+def client_ip(request: Request) -> str:
+    """The caller's address as the Function URL saw it. X-Forwarded-For is client-controlled, so it is ignored."""
     event = request.scope.get("aws.event") or {}
-    return ((event.get("requestContext") or {}).get("http") or {}).get("sourceIp")
+    ip = ((event.get("requestContext") or {}).get("http") or {}).get("sourceIp")
+    return ip if isinstance(ip, str) and ip.strip() else "unknown"
 
 
 def api_url(request: Request) -> str:

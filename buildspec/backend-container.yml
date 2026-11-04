@@ -120,7 +120,7 @@ phases:
         # Lambda only accepts a single-platform image manifest, not the index buildx adds for
         # provenance/SBOM attestations. The env var is ignored by Docker versions without buildx.
         export BUILDX_NO_DEFAULT_ATTESTATIONS=1
-        docker build --platform linux/amd64 -t "$IMAGE" ctx
+        docker build --progress=plain --platform linux/amd64 -t "$IMAGE" ctx
 
         if [ -z "${RESURRECT_LOCAL:-}" ]; then
           echo "::resurrect:: phase=uploading"
