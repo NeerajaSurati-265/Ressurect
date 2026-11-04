@@ -1,0 +1,32 @@
+{
+  "api_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://o5praykw6fdpudfk6pyzqpnid40pnjwt.lambda-url.us-east-1.on.aws"
+  },
+  "bucket_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "resurrect-847460071971"
+  },
+  "graves_distribution_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "ERBJ7A4BD1NAS"
+  },
+  "graves_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://d1jlm6dtvv2shf.cloudfront.net"
+  },
+  "ui_distribution_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "E3NCU0IA7ED00L"
+  },
+  "ui_url": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://d16ydepr0q87xj.cloudfront.net"
+  }
+}

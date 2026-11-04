@@ -1,0 +1,48 @@
+version: 0.2
+
+# Variables supplied by StartBuild (environmentVariablesOverride):
+#   REPO_URL, RES_ID, STACK (static | react-vite | react-cra), APP_DIR (default "."), BUCKET, COMMIT_SHA
+env:
+  shell: bash
+  variables:
+    NODE_OPTIONS: "--max-old-space-size=2048"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        APP_DIR="${APP_DIR:-.}"
+        echo "::resurrect:: phase=cloning"
+        git clone --depth 1 "$REPO_URL" src
+        cd "src/$APP_DIR"
+        case "$STACK" in
+          static)
+            echo "::resurrect:: phase=uploading"
+            aws s3 sync . "s3://$BUCKET/graves/$RES_ID/" --exclude ".git/*"
+            ;;
+          react-vite)
+            echo "::resurrect:: phase=installing"
+            npm ci || npm install
+            echo "::resurrect:: phase=building"
+            npx vite build --base="/$RES_ID/" --outDir __resurrect_dist
+            echo "::resurrect:: phase=uploading"
+            aws s3 sync __resurrect_dist "s3://$BUCKET/graves/$RES_ID/"
+            ;;
+          react-cra)
+            echo "::resurrect:: phase=installing"
+            npm ci || npm install
+            echo "::resurrect:: phase=building"
+            PUBLIC_URL="/$RES_ID/" CI=false npm run build
+            echo "::resurrect:: phase=uploading"
+            aws s3 sync build "s3://$BUCKET/graves/$RES_ID/"
+            ;;
+          *)
+            echo "Unknown STACK '$STACK'. Expected static, react-vite or react-cra." >&2
+            exit 1
+            ;;
+        esac
+        echo "::resurrect:: phase=done"
