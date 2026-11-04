@@ -3,6 +3,8 @@ import { Outlet, useLocation, useMatch } from 'react-router-dom'
 import { Scene } from '../scene/Scene'
 import { FilmGrain } from './FilmGrain'
 import { Footer } from './Footer'
+import { ParticleLayer } from '../fx/ParticleLayer'
+import { FogWipe } from './misc/FogWipe'
 
 /** Persistent scene behind every route; page content and footer sit above it. */
 export function Layout() {
@@ -23,6 +25,8 @@ export function Layout() {
         </main>
         <Footer />
       </div>
+      <FogWipe trigger={ritual ? 'ritual' : pathname === '/' ? 'landing' : 'other'} />
+      <ParticleLayer />
       <FilmGrain />
     </>
   )

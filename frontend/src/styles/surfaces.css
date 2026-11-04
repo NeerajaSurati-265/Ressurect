@@ -1,0 +1,64 @@
+/* Shared surfaces and glow tokens. The .mist-glass panel and .film-grain live in index.css;
+   this file adds the glow scale, the vignette and small helpers. Glow is a spice: 2-3 focal elements per screen. */
+:root {
+  --night-shadow: 0 18px 48px -12px color-mix(in srgb, var(--night-950) 85%, transparent);
+  --ember-glow-sm: 0 0 8px color-mix(in srgb, var(--ember-500) 45%, transparent);
+  --ember-glow-md: 0 0 14px color-mix(in srgb, var(--ember-500) 45%, transparent),
+    0 0 32px color-mix(in srgb, var(--ember-500) 22%, transparent);
+  --ember-glow-lg: 0 0 20px color-mix(in srgb, var(--ember-300) 50%, transparent),
+    0 0 56px color-mix(in srgb, var(--ember-500) 28%, transparent);
+  --spectral-glow: 0 0 18px color-mix(in srgb, var(--spectral) 40%, transparent),
+    0 0 48px color-mix(in srgb, var(--spectral) 18%, transparent);
+  --ember-text-glow: 0 0 10px color-mix(in srgb, var(--ember-500) 55%, transparent);
+  --spectral-text-glow: 0 0 12px color-mix(in srgb, var(--spectral) 55%, transparent);
+}
+
+.glow-ember-sm { box-shadow: var(--ember-glow-sm); }
+.glow-ember-md { box-shadow: var(--ember-glow-md); }
+.glow-ember-lg { box-shadow: var(--ember-glow-lg); }
+.glow-spectral { box-shadow: var(--spectral-glow); }
+
+/* Soft vignette that unifies the scene like paint. */
+.fx-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: radial-gradient(ellipse 120% 90% at 55% 40%, transparent 55%,
+    color-mix(in srgb, var(--night-950) 55%, transparent) 100%);
+}
+
+.fx-particles {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 30;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-particles { display: none; }
+}
+
+/* Result cards rise out of the light. CSS keyframes so the entrance always completes. */
+@keyframes card-rise {
+  0% { opacity: 0; transform: translateY(28px) scale(0.94); }
+  70% { opacity: 1; transform: translateY(-3px) scale(1.005); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes card-fade { from { opacity: 0; } to { opacity: 1; } }
+.card-rise { animation: card-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) var(--rise-delay, 0s) both; }
+@media (prefers-reduced-motion: reduce) {
+  .card-rise { animation: card-fade 0.4s ease-out both; }
+}
+
+/* Séance log line: ink bleeding onto paper. */
+@keyframes ink-in {
+  from { opacity: 0; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.ink-in { animation: ink-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .ink-in { animation: none; }
+}

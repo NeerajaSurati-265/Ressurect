@@ -1,11 +1,33 @@
+import { useEffect, useRef } from 'react'
+import { keeperSignal } from './keeperSignal'
+
 /**
  * The Keeper: an original hooded lantern-bearer standing at the right edge.
  * Faceless hood with two faint ember eyes, a long plain robe and a sleeve that
  * holds a lantern out toward the URL input. No hands, no tatters.
  */
 export function TheKeeper() {
+  const ref = useRef<SVGSVGElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let t = 0
+    const off = keeperSignal.subscribe(({ focus, flare }) => {
+      el.style.setProperty('--keeper-wake', focus ? '1' : '0')
+      if (flare) {
+        el.style.setProperty('--keeper-flare', '1')
+        window.clearTimeout(t)
+        t = window.setTimeout(() => el.style.setProperty('--keeper-flare', '0'), 140)
+      }
+    })
+    return () => {
+      off()
+      window.clearTimeout(t)
+    }
+  }, [])
   return (
     <svg
+      ref={ref}
       viewBox="0 0 260 560"
       overflow="visible"
       className="absolute"
@@ -46,7 +68,7 @@ export function TheKeeper() {
       {/* lantern light pooling on the ground in front of the Keeper */}
       <ellipse cx="80" cy="548" rx="150" ry="16" fill="url(#keeper-pool)" className="anim-ember-slow" />
       {/* ground shadow */}
-      <ellipse cx="155" cy="548" rx="92" ry="9" fill="#000" opacity="0.55" />
+      <ellipse cx="155" cy="548" rx="92" ry="9" fill="#04050a" opacity="0.6" />
 
       {/* robe */}
       <path
@@ -76,10 +98,23 @@ export function TheKeeper() {
         fill="url(#keeper-wash)"
       />
       <path d="M110 166 C 98 116, 118 54, 152 40" fill="none" stroke="#ffb35c" strokeOpacity="0.25" strokeWidth="1.5" />
+      {/* cold moon rim along the crown of the hood (moon is up-left) */}
+      <path d="M118 112 C 122 76, 136 50, 154 42 C 168 36, 180 44, 188 58" fill="none" stroke="#c9d4ec" strokeOpacity="0.28" strokeWidth="1.4" strokeLinecap="round" />
       {/* faceless void */}
       <path d="M118 152 C 112 120, 124 88, 147 82 C 166 78, 172 104, 168 130 C 165 150, 152 166, 133 167 Z" fill="#010104" />
       {/* two faint ember eyes */}
       <g className="anim-ember-slow">
+        <g
+          style={{
+            opacity: 'calc(0.35 + 0.4 * var(--keeper-wake, 0) + 0.25 * var(--keeper-flare, 0))',
+            transition: 'opacity 250ms cubic-bezier(0.16,1,0.3,1)',
+          }}
+          filter="url(#eye-blur)"
+          fill="#ffb35c"
+        >
+          <circle cx="134" cy="118" r="4.2" />
+          <circle cx="152" cy="116" r="4.2" />
+        </g>
         <g filter="url(#eye-blur)" fill="#ffb35c" opacity="0.75">
           <circle cx="134" cy="118" r="2.6" />
           <circle cx="152" cy="116" r="2.6" />
@@ -96,6 +131,16 @@ export function TheKeeper() {
       {/* lantern, swaying gently from the sleeve */}
       <g className="anim-sway" style={{ transformOrigin: '60px 232px' }}>
         <circle cx="56" cy="270" r="150" fill="url(#lantern-glow)" className="anim-ember" />
+        <circle
+          cx="56"
+          cy="278"
+          r="110"
+          fill="url(#lantern-glow)"
+          style={{
+            opacity: 'calc(0.55 * var(--keeper-wake, 0) + 0.45 * var(--keeper-flare, 0))',
+            transition: 'opacity 300ms cubic-bezier(0.16,1,0.3,1)',
+          }}
+        />
         <path d="M60 232 L57 246" stroke="#2a2418" strokeWidth="1.6" />
         <circle cx="56" cy="248" r="3.5" fill="none" stroke="#2a2418" strokeWidth="1.6" />
         <path d="M44 260 L68 260 L63 251 L49 251 Z" fill="#1a150d" />

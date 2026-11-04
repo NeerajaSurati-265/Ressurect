@@ -1,5 +1,5 @@
 import type { Ghost } from '@contracts/types'
-import type { Ref } from 'react'
+import type { CSSProperties, Ref } from 'react'
 import type { ApiRequestError } from '../api'
 import { Button } from '../components/Button'
 import { CopyField } from '../components/CopyField'
@@ -33,7 +33,11 @@ export function ErrorGhost({
 
   return (
     <div className="flex flex-col gap-5">
-      <section aria-labelledby="ghost-h" className="ghost-glass panel-enter rounded-2xl p-5 sm:p-7">
+      <section
+        aria-labelledby="ghost-h"
+        className="ghost-glass card-rise rounded-2xl p-5 sm:p-7"
+        style={{ '--rise-delay': '1.2s' } as CSSProperties}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h2 id="ghost-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">
             {fallback ? COPY.fallbackGhost : 'A ghost stirs. The build failed.'}
@@ -42,17 +46,17 @@ export function ErrorGhost({
             <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${conf.cls}`}>{conf.label}</span>
           )}
         </div>
-        <p className="mt-1 text-sm text-mist">Attempt {attempt} did not come back to life. Here is what the spirit says went wrong.</p>
+        <p className="mt-2 text-sm leading-relaxed text-mist">Attempt {attempt} did not come back to life. Here is what the spirit says went wrong.</p>
 
         {ghost && (
-          <dl className="mt-5 grid gap-4">
+          <dl className="mt-6 grid gap-5">
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wider text-ember-300">Cause</dt>
-              <dd className="mt-1 text-moon">{ghost.cause}</dd>
+              <dd className="mt-1.5 leading-relaxed text-moon">{ghost.cause}</dd>
             </div>
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wider text-spectral">Fix</dt>
-              <dd className="mt-1 text-moon">{ghost.fix}</dd>
+              <dd className="mt-1.5 leading-relaxed text-moon">{ghost.fix}</dd>
             </div>
           </dl>
         )}
@@ -76,7 +80,7 @@ export function ErrorGhost({
           </details>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-moon/10 pt-6">
           <Button variant="primary" onClick={onRetry} disabled={retrying} aria-busy={retrying}>
             {retrying ? 'Calling the spirits back…' : 'Try again'}
           </Button>

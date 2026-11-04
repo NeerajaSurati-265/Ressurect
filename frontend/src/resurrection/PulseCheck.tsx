@@ -1,4 +1,5 @@
 import type { LogLine, Pulse } from '@contracts/types'
+import { m, useReducedMotion } from 'framer-motion'
 import type { Ref } from 'react'
 
 const BEAT =
@@ -16,6 +17,7 @@ export function PulseCheck({
 }) {
   const attempts = pulse?.attempts ?? 1
   const max = pulse?.max_attempts ?? 20
+  const reduced = useReducedMotion()
   return (
     <section aria-labelledby="pulse-h" className="mist-glass panel-enter rounded-2xl p-5 sm:p-6">
       <h2 id="pulse-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">
@@ -24,7 +26,16 @@ export function PulseCheck({
       <p className="mt-1 text-mist">
         The build worked. We are visiting your app's new address to make sure it answers.{' '}
         <span className="font-semibold text-spectral">
-          Attempt <span className="tabular-nums">{attempts}</span> of <span className="tabular-nums">{max}</span>
+          Attempt{' '}
+          <m.span
+            key={attempts}
+            className="inline-block tabular-nums"
+            initial={reduced ? false : { scale: 1.28, opacity: 0.55 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 14, mass: 0.8 }}
+          >
+            {attempts}
+          </m.span> of <span className="tabular-nums">{max}</span>
         </span>
       </p>
       <div className="mt-4 overflow-hidden rounded-xl border border-spectral/20 bg-night-950/70 py-3">
@@ -40,8 +51,26 @@ export function PulseCheck({
             strokeLinecap="round"
             pathLength={100}
             className="heartbeat-sweep"
-            style={{ filter: 'drop-shadow(0 0 4px rgba(125,226,209,0.8))' }}
+            style={{ filter: 'drop-shadow(0 0 3px rgba(125,226,209,0.6))' }}
           />
+          {/* the glowing pen tip, riding the same eased 2.2 s sweep as the stroke above */}
+          {!reduced && (
+            <g>
+              <circle r="7" fill="#7de2d1" fillOpacity="0.16" />
+              <circle r="3.2" fill="#7de2d1" fillOpacity="0.45" />
+              <circle r="1.6" fill="#e9ecf5" />
+              <animateMotion
+                dur="2.2s"
+                repeatCount="indefinite"
+                path={BEAT}
+                calcMode="spline"
+                keyPoints="0;1;1"
+                keyTimes="0;0.7;1"
+                keySplines="0.42 0 0.58 1;0 0 1 1"
+              />
+              <animate attributeName="opacity" dur="2.2s" repeatCount="indefinite" values="1;1;0" keyTimes="0;0.7;1" />
+            </g>
+          )}
         </svg>
       </div>
       {lastLine && (

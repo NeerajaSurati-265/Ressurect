@@ -1,5 +1,51 @@
 # Frontend notes
 
+## UI/UX upgrade summary (2026-11-04, 11:00–11:20 IST)
+
+**Status:** `npm run build` passes. Nothing is committed. Every change is inside `frontend/` and there are no new
+dependencies. `rip/index.html` is 8.3 KB.
+
+**What changed**
+- Foundation: `src/fx/particles.ts` and `<ParticleLayer/>` are one pooled canvas engine, `emit(preset, {x, y, count})`,
+  with the presets ember, spirit-mote, dirt, smoke and firefly. It is capped at about 60 fps, sleeps when empty,
+  pauses on a hidden tab and is off under reduced motion. Also new: `src/styles/motion.ts` (easings, durations,
+  springs, `float()`) and `src/styles/surfaces.css` (glow tokens, vignette, `.card-rise`, `.ink-in`).
+- Rituals: the tombstone sinks, then heaves up with dirt and a small camera shake. Risen: two shudders, a glowing crack,
+  the halves fall, a light column rises, about 50 spirit motes come out and the card rises. The ghost gathers out of
+  smoke, its eyes open last and it floats with a wisp. The copy buttons show a check mark and an ember pulse.
+- Landing: a 1.6 s intro once per session, skippable (moon out of cloud, fog, the letters rise and ignite).
+  The Keeper's lantern and eyes react to input focus and keystrokes. Pale wisps and pumpkin embers drift in the scene
+  SVG, and a cloud crosses the moon every 15–25 s. The button gets a hover shimmer, sinks when pressed and bursts
+  embers on submit. The input gets a candlelight focus glow.
+- Séance: log lines bleed in like ink, the candles flare on new lines, and the phase strip is now runes that ignite.
+  The pulse line is drawn by a glowing pen tip. The autopsy is a case file with staggered findings, engraved glyphs
+  and an animated expand. The countdown has a burning candle that turns red and gutters under 2:00.
+- Other screens: a fog wipe between the landing and `/r/:id`. Graveyard stones sway and glow on hover, lit by status;
+  expired stones have moss and a crack. TurnedAway has a locked gate, CannotRise has a slab with sleeping spirits,
+  the 404 has a swinging lantern, and the RIP page and footer were restyled.
+- Integration fixes I made: the Risen and ErrorGhost card entrances and the séance ink effect now use CSS keyframes
+  (`fill-mode: both`) instead of framer-motion. That way a card or log line can never be left invisible or blurred.
+  The tombstone rise has a 2.5 s safety snap to standing. The 404 lantern chain now reaches the lantern.
+
+**Screenshots:** `frontend/screenshots/` (1440x900 and 390x844). They were made with headless Chrome against the mock;
+`seed.html` backdates a mock run to jump to each state.
+- Capture caveat: with full motion, headless virtual time stalls once the scene's continuous animations start.
+  The DOM showed the stone stuck on its first frame, and timers never fired. Because of that,
+  `risen-phone`, `ghost-phone` and `cannot-rise-*` were captured with `--force-prefers-reduced-motion`. These show
+  the end states correctly. **Check the full-motion versions of those three in a real browser.**
+
+**Check by eye (in a real browser, mock on)**
+- The Risen sequence on a phone: the card should rise after about 1.8 s, and the light column should be spectral,
+  not dark (in headless it looked dark because it was captured mid-animation).
+- The cannot_rise grey stone rises and stays up.
+- The ghost looks a little soft and round, close to cartoon. If it reads as cheesy, sharpen its silhouette.
+- The countdown candle assumes a 20-minute lifetime, so with `VITE_MOCK_LIFETIME_S=60` it starts nearly burnt down.
+- The intro plays only once per session. Use a new tab or clear sessionStorage `resurrect:intro-seen` to see it again.
+
+**Unfinished:** Lighthouse was not run. Expired has no illustration of its own (its tombstone has moss only). A 390 px
+horizontal overflow check was done only visually from the screenshots (`html` also has `overflow-x: hidden`).
+
+
 ## Morning summary (2026-11-04)
 
 **Nothing is committed or pushed.** Your global `~/.claude/settings.json` denies `git add`, `git commit`

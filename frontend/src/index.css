@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./styles/surfaces.css";
 
 @theme inline {
   --color-night-950: var(--night-950);

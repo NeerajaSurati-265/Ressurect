@@ -1,29 +1,40 @@
+import { m, useReducedMotion } from 'framer-motion'
+import { EASE_OUT_EXPO } from '../styles/motion'
 import type { Severity } from '@contracts/types'
 
-/** ok = spectral check, warn = ember candle, block = blood X. */
+/**
+ * Severity seals, engraved like a stamp pressed into the case file:
+ * double ring, recessed glyph, a hairline of moonlight on the lower lip.
+ * ok = spectral check, warn = ember candle, block = blood cross.
+ */
 export function SeverityIcon({ severity, className = 'h-6 w-6' }: { severity: Severity; className?: string }) {
-  if (severity === 'ok') {
-    return (
-      <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-        <circle cx="12" cy="12" r="10" fill="#7de2d1" fillOpacity="0.14" stroke="#7de2d1" strokeOpacity="0.55" />
-        <path d="M7 12.5l3.2 3.2L17.5 8" fill="none" stroke="#7de2d1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-  if (severity === 'warn') {
-    return (
-      <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-        <circle cx="12" cy="9" r="7" fill="#ff8a1f" fillOpacity="0.16" className="anim-ember" />
-        <path d="M12 3.5c1.8 2.2 2.2 3.8 0 6.2-2.2-2.4-1.8-4 0-6.2z" fill="#ffb35c" className="anim-flame" />
-        <rect x="9" y="11" width="6" height="9" rx="1" fill="#e8e1d0" />
-        <path d="M7 20.5h10" stroke="#e8e1d0" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    )
-  }
+  const c = severity === 'ok' ? '#7de2d1' : severity === 'warn' ? '#ffb35c' : '#ff6b70'
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="10" fill="#e5484d" fillOpacity="0.16" stroke="#e5484d" strokeOpacity="0.6" />
-      <path d="M8 8l8 8M16 8l-8 8" stroke="#ff6b70" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="12" cy="12.5" r="10.2" fill="none" stroke="#e8e1d0" strokeOpacity="0.12" />
+      <circle cx="12" cy="12" r="10.2" fill={c} fillOpacity="0.1" stroke={c} strokeOpacity="0.6" strokeWidth="1.1" />
+      <circle cx="12" cy="12" r="7.9" fill="none" stroke={c} strokeOpacity="0.28" strokeWidth="0.7" strokeDasharray="1.2 1.4" />
+      <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {severity === 'ok' && (
+          <>
+            <path d="M8.2 12.6l2.6 2.6 5-5.6" stroke="#07080f" strokeOpacity="0.6" strokeWidth="2.6" transform="translate(0 0.6)" />
+            <path d="M8.2 12.6l2.6 2.6 5-5.6" stroke={c} strokeWidth="1.8" />
+          </>
+        )}
+        {severity === 'warn' && (
+          <>
+            <path d="M12 6.4c1.3 1.6 1.5 2.7 0 4.3-1.5-1.6-1.3-2.7 0-4.3z" fill={c} stroke="none" />
+            <path d="M10 11.6h4v5.2h-4z" stroke={c} strokeWidth="1.3" />
+            <path d="M8.6 17.6h6.8" stroke={c} strokeWidth="1.3" />
+          </>
+        )}
+        {severity === 'block' && (
+          <>
+            <path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#07080f" strokeOpacity="0.6" strokeWidth="2.8" transform="translate(0 0.6)" />
+            <path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke={c} strokeWidth="1.9" />
+          </>
+        )}
+      </g>
     </svg>
   )
 }
@@ -39,7 +50,16 @@ export function CopyIcon() {
   )
 }
 
-export function Candle({ className = '', delay = 0 }: { className?: string; delay?: number }) {
+/**
+ * A séance candle. Bump `flare` (any changing number) to make the flame swell
+ * briefly, e.g. when a new log line arrives. Static under reduced motion.
+ */
+export function Candle({ className = '', delay = 0, flare = 0 }: { className?: string; delay?: number; flare?: number }) {
+  const reduced = useReducedMotion()
+  const flareAnim =
+    reduced || flare === 0
+      ? undefined
+      : { scale: [1, 1.22, 1], filter: ['brightness(1)', 'brightness(1.35)', 'brightness(1)'] }
   return (
     <svg viewBox="0 0 40 90" className={className} aria-hidden="true">
       <defs>
@@ -54,6 +74,12 @@ export function Candle({ className = '', delay = 0 }: { className?: string; dela
           <stop offset="100%" stopColor="#9c8a64" />
         </linearGradient>
       </defs>
+      <m.g
+        key={flare}
+        animate={flareAnim}
+        transition={{ duration: 0.7, ease: EASE_OUT_EXPO, times: [0, 0.25, 1] }}
+        style={{ transformBox: 'fill-box', transformOrigin: '50% 80%' }}
+      >
       <circle cx="20" cy="22" r="20" fill="url(#candle-glow)" className="anim-ember" style={{ animationDelay: `${delay}s` }} />
       <path
         d="M20 8c4 5 5 9 0 15-5-6-4-10 0-15z"
@@ -62,10 +88,31 @@ export function Candle({ className = '', delay = 0 }: { className?: string; dela
         style={{ animationDelay: `${delay}s` }}
       />
       <path d="M20 13c2 3 2.2 5 0 8-2.2-3-2-5 0-8z" fill="#fff1c9" className="anim-flame" style={{ animationDelay: `${delay}s` }} />
+      </m.g>
       <path d="M20 23v4" stroke="#2a2418" strokeWidth="1.4" />
       <path d="M12 28h16v54H12z" fill="url(#candle-wax)" />
       <path d="M12 28c2 0 3 6 5 6s2-6 4-6 3 9 5 9 2-9 2-9" fill="#f3ecdb" />
       <path d="M6 84h28" stroke="#2a2418" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Original rune glyphs for the five ritual phases (summon, clone, install, build, upload).
+ * Drawn as single-stroke marks on a 24 grid.
+ */
+export const RUNES = [
+  'M12 3v18M12 8l-5-4M12 8l5-4M8 21h8', // summon: a forked staff
+  'M7 4v16M17 4v16M7 12h10', // clone: twin pillars joined
+  'M12 3l7 9-7 9-7-9zM12 8v8', // install: the seed in the lozenge
+  'M5 20L12 4l7 16M8 14h8', // build: the raised gable
+  'M12 21V5M6 11l6-6 6 6M6 17l6-6 6 6', // upload: the rising arrows
+] as const
+
+export function Rune({ index, className = 'h-6 w-6' }: { index: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d={RUNES[index % RUNES.length]} />
     </svg>
   )
 }

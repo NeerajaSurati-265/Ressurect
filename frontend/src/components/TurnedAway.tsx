@@ -62,6 +62,11 @@ function GateIcon() {
         ))}
         <path d="M60 24V72" />
       </g>
+      {/* moon rim on the right-hand edges */}
+      <path d="M107.5 76V22M100 30Q80 14 60 24" stroke="#e9ecf5" strokeOpacity="0.25" strokeWidth="0.9" fill="none" />
+      {/* chain across the lock */}
+      <path d="M44 52Q52 58 55 52M65 52Q68 58 76 52" stroke="#6a7697" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      <ellipse cx="60" cy="78" rx="22" ry="2.5" fill="#ff8a1f" opacity="0.18" />
       <g fill="#ffb35c" className="anim-ember">
         <rect x="55" y="48" width="10" height="9" rx="1.5" />
       </g>

@@ -20,6 +20,7 @@ export function CannotRise({
 
   return (
     <section aria-labelledby="cannot-h" className="mist-glass panel-enter rounded-2xl p-5 sm:p-7">
+      <HeavyStone />
       <h2 id="cannot-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">
         {COPY.cannotRiseHeadline}
       </h2>
@@ -52,5 +53,31 @@ export function CannotRise({
         </ExternalButton>
       </div>
     </section>
+  )
+}
+
+/** A heavy slab resting over the grave, moon rim-light on top, spirits asleep beneath. */
+function HeavyStone() {
+  return (
+    <svg viewBox="0 0 160 70" className="mb-3 h-14 w-32" aria-hidden="true">
+      <defs>
+        <linearGradient id="cr-slab" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#5a5d68" />
+          <stop offset="100%" stopColor="#202230" />
+        </linearGradient>
+        <radialGradient id="cr-sleep">
+          <stop offset="0%" stopColor="#c9d4ec" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#c9d4ec" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <path d="M4 66C40 58 120 58 156 66Z" fill="#0d1020" />
+      <path d="M18 60L26 34H134L142 60Z" fill="url(#cr-slab)" stroke="#07080f" strokeWidth="1.5" />
+      <path d="M27 35H133" stroke="#c9d4ec" strokeOpacity="0.4" strokeWidth="1.2" />
+      <path d="M70 36L76 46L72 52L78 59" fill="none" stroke="#07080f" strokeOpacity="0.8" strokeWidth="1.3" />
+      <path d="M50 48H62M98 48H110" stroke="#07080f" strokeOpacity="0.5" strokeWidth="1.6" strokeLinecap="round" />
+      <ellipse cx="50" cy="22" rx="12" ry="8" fill="url(#cr-sleep)" className="anim-pulse-soft" />
+      <ellipse cx="112" cy="18" rx="10" ry="7" fill="url(#cr-sleep)" />
+      <path d="M46 22q2 -2 4 0M108 18q2 -2 4 0" stroke="#c9d4ec" strokeOpacity="0.45" strokeWidth="1" fill="none" strokeLinecap="round" />
+    </svg>
   )
 }

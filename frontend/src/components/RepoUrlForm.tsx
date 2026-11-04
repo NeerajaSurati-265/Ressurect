@@ -1,5 +1,8 @@
 import type { CreateResurrectionRequest } from '@contracts/types'
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
+import { emitFrom } from '../fx/particles'
+import { keeperSignal } from '../scene/keeperSignal'
+import { buttonClass } from './Button'
 import { INVALID_URL_COPY, parseRepoUrl } from '../lib/repoUrl'
 
 export function RepoUrlForm({
@@ -13,6 +16,8 @@ export function RepoUrlForm({
   const [invalid, setInvalid] = useState(false)
   const inputId = useId()
   const errorId = useId()
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [flare, setFlare] = useState(false)
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -22,6 +27,9 @@ export function RepoUrlForm({
       setInvalid(true)
       return
     }
+    emitFrom(buttonRef.current, 'ember', { count: 30 })
+    setFlare(true)
+    window.setTimeout(() => setFlare(false), 450)
     onSubmit({ repo_url: parsed.url })
   }
 
@@ -40,19 +48,31 @@ export function RepoUrlForm({
           spellCheck={false}
           placeholder="https://github.com/you/your-forgotten-project"
           value={value}
+          onFocus={() => keeperSignal.focus(true)}
+          onBlur={() => keeperSignal.focus(false)}
+          onKeyDown={() => keeperSignal.flare()}
           onChange={(e) => {
             setValue(e.target.value)
             if (invalid) setInvalid(false)
           }}
           aria-invalid={invalid}
           aria-describedby={invalid ? errorId : undefined}
-          className="min-w-0 flex-1 rounded-xl border border-moon/15 bg-night-950/70 px-4 py-3 text-base text-moon placeholder:text-mist/80 focus:border-ember-500/70 aria-[invalid=true]:border-ember-500"
+          className="min-w-0 flex-1 rounded-xl border border-moon/15 bg-night-950/70 px-4 py-3 text-base text-moon placeholder:text-mist/80 outline-none transition-[border-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus:border-ember-300/70 focus:shadow-[0_0_0_1px_rgba(255,179,92,0.25),0_0_18px_rgba(255,138,31,0.28),inset_0_0_12px_rgba(255,138,31,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember-300/60 aria-[invalid=true]:border-ember-500"
         />
         <button
+          ref={buttonRef}
           type="submit"
           disabled={busy}
           aria-busy={busy}
-          className="shrink-0 cursor-pointer rounded-xl bg-ember-500 px-6 py-3 font-semibold text-night-950 shadow-[0_0_24px_rgba(255,138,31,0.35)] transition-[background-color] hover:bg-ember-300 disabled:cursor-wait disabled:opacity-80"
+          className={buttonClass(
+            'primary',
+            'shrink-0 px-6 disabled:opacity-80',
+          )}
+          style={
+            flare
+              ? { boxShadow: '0 0 20px rgba(255,241,201,0.6), 0 0 64px rgba(255,138,31,0.6)', filter: 'brightness(1.15)' }
+              : undefined
+          }
         >
           {busy ? 'Performing the autopsy…' : 'Begin the ritual'}
         </button>

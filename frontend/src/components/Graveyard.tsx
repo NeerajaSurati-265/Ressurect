@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { prefersReducedMotion, SPRING, STAGGER, EASE_OUT_EXPO } from '../styles/motion'
 import { api, toApiRequestError } from '../api'
 import { COPY } from '../lib/copy'
 import { markLost, rememberResurrection, useGraveyard, type GraveRecord, type GraveStatus } from '../lib/graveyard'
@@ -102,15 +104,30 @@ function MiniStone({ grave, look }: { grave: GraveRecord; look: Look }) {
           <ellipse cx="28" cy="110" rx="12" ry="4" />
           <ellipse cx="72" cy="111" rx="14" ry="3.5" />
           <ellipse cx="21" cy="100" rx="3.5" ry="7" />
+          <path d="M18 60C24 56 30 58 34 52C34 60 26 64 22 72C20 68 19 64 18 60Z" fillOpacity="0.7" />
+          <path d="M70 26C76 30 80 36 82 44C78 42 74 38 70 26Z" fillOpacity="0.6" />
         </g>
       )}
+      {look === 'moss' && (
+        <path d="M44 24L48 36L42 44L47 54M48 36L55 40" fill="none" stroke="#0b0d19" strokeOpacity="0.8" strokeWidth="1.3" strokeLinecap="round" />
+      )}
+      {look === 'failed' && <ellipse cx="50" cy="112" rx="34" ry="5" fill="#e5484d" fillOpacity="0.22" />}
       {look === 'grey' && <path d="M60 40L54 58L62 68L55 84" fill="none" stroke="#0b0d19" strokeWidth="1.6" />}
       <path d="M4 114C30 108 70 108 96 114C70 119 30 119 4 114Z" fill="#05060b" />
     </svg>
   )
 }
 
-function GraveCard({ grave, offset, now }: { grave: GraveRecord; offset: number; now: number }) {
+const HALO: Record<Look, string> = {
+  alive: 'rgba(125,226,209,0.35)',
+  failed: 'rgba(229,72,77,0.32)',
+  grey: 'rgba(143,163,199,0.16)',
+  moss: 'rgba(107,132,85,0.3)',
+  rising: 'rgba(255,138,31,0.3)',
+  lost: 'rgba(143,163,199,0.08)',
+}
+
+function GraveCard({ grave, offset, now, index }: { grave: GraveRecord; offset: number; now: number; index: number }) {
   let status = grave.status
   const left = grave.expires_at ? msUntil(grave.expires_at, offset, now) : Infinity
   if (status === 'alive' && !grave.pinned && left <= 0) status = 'expired'
@@ -119,15 +136,34 @@ function GraveCard({ grave, offset, now }: { grave: GraveRecord; offset: number;
     look === 'alive' ? (grave.pinned || !grave.expires_at ? 'Eternal' : `${formatClock(left)} left`) : LABEL[look]
 
   return (
-    <li>
+    <motion.li
+      initial={prefersReducedMotion() ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: EASE_OUT_EXPO, delay: index * STAGGER }}
+    >
       <Link
         to={`/r/${grave.id}`}
         className="group flex flex-col items-center rounded-xl p-2 text-center transition-colors hover:bg-moon/5"
         aria-label={`${grave.owner}/${grave.name}: ${look === 'alive' ? `alive, ${detail}` : LABEL[look]}`}
       >
-        <div className="w-20 transition-transform group-hover:-translate-y-1 sm:w-24">
-          <MiniStone grave={grave} look={look} />
-        </div>
+        <motion.div
+          className="relative w-20 sm:w-24"
+          style={{ originY: 1 }}
+          initial="rest"
+          whileHover={prefersReducedMotion() ? undefined : 'hover'}
+          whileFocus={prefersReducedMotion() ? undefined : 'hover'}
+          variants={{ rest: { rotate: 0, y: 0 }, hover: { rotate: [0, -2.5, 1.5, 0], y: -3 } }}
+          transition={{ ...SPRING.heavy, rotate: { duration: 1.2, ease: 'easeInOut' } }}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-[-20%] bottom-[-6%] top-[10%] rounded-full opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+            style={{ background: `radial-gradient(closest-side, ${HALO[look]}, transparent)` }}
+          />
+          <div className="relative">
+            <MiniStone grave={grave} look={look} />
+          </div>
+        </motion.div>
         <span className="mt-2 w-full truncate text-sm font-semibold text-moon">{grave.name}</span>
         <span
           className={`text-xs ${look === 'alive' ? 'font-display font-bold tabular-nums text-spectral' : look === 'failed' ? 'text-ember-300' : look === 'moss' ? 'text-[#9bb582]' : 'text-mist'}`}
@@ -135,7 +171,25 @@ function GraveCard({ grave, offset, now }: { grave: GraveRecord; offset: number;
           {detail}
         </span>
       </Link>
-    </li>
+    </motion.li>
+  )
+}
+
+/** An unmarked plot: a mound of earth with a bare wooden marker, lit by the moon. */
+function EmptyPlot() {
+  return (
+    <svg viewBox="0 0 120 64" className="h-14 w-28 shrink-0" aria-hidden="true">
+      <defs>
+        <linearGradient id="gy-mound" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2a3150" />
+          <stop offset="100%" stopColor="#0d1020" />
+        </linearGradient>
+      </defs>
+      <path d="M8 60C24 40 96 40 112 60Z" fill="url(#gy-mound)" />
+      <path d="M26 50C44 42 76 42 94 50" fill="none" stroke="#c9d4ec" strokeOpacity="0.18" strokeWidth="1" />
+      <path d="M60 46V14M50 22H70" stroke="#4a4232" strokeWidth="3.2" strokeLinecap="round" />
+      <path d="M61.5 44V15M51 21H69" stroke="#c9d4ec" strokeOpacity="0.25" strokeWidth="0.8" />
+    </svg>
   )
 }
 
@@ -178,13 +232,16 @@ export function Graveyard() {
           Your graveyard
         </h2>
         {graves.length === 0 ? (
-          <p className="mt-2 text-mist">{COPY.emptyGraveyard}</p>
+          <div className="mt-4 flex flex-col items-center gap-3 py-2 text-center sm:flex-row sm:text-left">
+            <EmptyPlot />
+            <p className="text-mist">{COPY.emptyGraveyard}</p>
+          </div>
         ) : (
           <>
             <p className="mt-1 text-sm text-mist">Your recent resurrections in this browser. Open one to see its state.</p>
             <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-              {graves.map((g) => (
-                <GraveCard key={g.id} grave={g} offset={offsets[g.id] ?? 0} now={now} />
+              {graves.map((g, i) => (
+                <GraveCard key={g.id} index={i} grave={g} offset={offsets[g.id] ?? 0} now={now} />
               ))}
             </ul>
           </>

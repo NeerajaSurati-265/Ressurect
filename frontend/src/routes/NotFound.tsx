@@ -1,8 +1,11 @@
 import { useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { prefersReducedMotion } from '../styles/motion'
 import { ButtonLink } from '../components/Button'
 import { COPY } from '../lib/copy'
 
 function Lantern() {
+  const still = prefersReducedMotion()
   return (
     <svg viewBox="0 0 120 170" className="mx-auto h-40 w-28 overflow-visible" aria-hidden="true">
       <defs>
@@ -17,9 +20,15 @@ function Lantern() {
           <stop offset="100%" stopColor="#c55400" />
         </radialGradient>
       </defs>
-      <g className="anim-sway" style={{ transformOrigin: '60px 0px' }}>
+      {/* warm pool on the misty path below */}
+      <ellipse cx="60" cy="166" rx="56" ry="7" fill="#ff8a1f" opacity="0.14" />
+      <motion.g
+        style={{ originX: '60px', originY: '0px', transformBox: 'view-box' }}
+        animate={still ? undefined : { rotate: [-6, 6, -6] }}
+        transition={still ? undefined : { duration: 3.6, ease: [0.37, 0, 0.63, 1], repeat: Infinity }}
+      >
         <circle cx="60" cy="100" r="95" fill="url(#nf-glow)" className="anim-ember" />
-        <path d="M60 0V34" stroke="#4a4232" strokeWidth="2" />
+        <path d="M60 0V48" stroke="#4a4232" strokeWidth="2" />
         <circle cx="60" cy="40" r="6" fill="none" stroke="#4a4232" strokeWidth="2.4" />
         <path d="M38 62H82L74 48H46Z" fill="#1a150d" />
         <rect x="40" y="62" width="40" height="58" rx="5" fill="url(#nf-glass)" className="anim-ember" />
@@ -29,7 +38,29 @@ function Lantern() {
           <path d="M53 62V120M67 62V120" strokeWidth="1.6" />
         </g>
         <path d="M36 120H84L78 130H42Z" fill="#1a150d" />
-      </g>
+        <path d="M80 64V118" stroke="#c9d4ec" strokeOpacity="0.35" strokeWidth="1" />
+      </motion.g>
+    </svg>
+  )
+}
+
+/** A pale path vanishing into mist beneath the lantern. */
+function MistyPath() {
+  return (
+    <svg viewBox="0 0 240 40" className="mx-auto -mt-3 h-10 w-60" aria-hidden="true">
+      <defs>
+        <linearGradient id="nf-path" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#8fa3c7" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#8fa3c7" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="nf-mist">
+          <stop offset="0%" stopColor="#8fa3c7" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#8fa3c7" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <path d="M70 40C96 28 112 14 118 0H122C128 14 144 28 170 40Z" fill="url(#nf-path)" />
+      <ellipse cx="60" cy="26" rx="70" ry="10" fill="url(#nf-mist)" />
+      <ellipse cx="180" cy="30" rx="70" ry="9" fill="url(#nf-mist)" />
     </svg>
   )
 }
@@ -45,6 +76,7 @@ export function NotFound() {
     <section className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 pb-[16vh] pt-16 text-center">
       <div className="mist-glass w-full rounded-2xl px-6 py-8 sm:px-10">
         <Lantern />
+        <MistyPath />
         <h1 className="mt-4 font-display text-3xl font-bold text-moon sm:text-4xl">{COPY.notFound}</h1>
         <p className="mt-3 text-mist">There is nothing buried at this address. The link may be mistyped, or the page never existed.</p>
         <div className="mt-6">

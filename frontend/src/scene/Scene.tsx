@@ -1,5 +1,9 @@
 import { m } from 'framer-motion'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePageVisible } from '../hooks/usePageVisible'
+import { intro } from './intro'
+import { useIntroPlaying } from './useIntro'
+import { Wisps } from './Wisps'
 import { Bats } from './Bats'
 import { CandleGlow } from './CandleGlow'
 import { DeadTrees } from './DeadTrees'
@@ -26,6 +30,30 @@ export function Scene({ descended = false }: { descended?: boolean }) {
   const finePointer = useFinePointer()
   const rootRef = useRef<HTMLDivElement>(null)
   const interactive = !reduced && !mobile && finePointer
+  const visible = usePageVisible()
+  const introPlaying = useIntroPlaying()
+  const fromIntro = intro.played
+  const [dim, setDim] = useState(false)
+
+  // Every 15-25 s (randomised) a cloud crosses the moon and the scene gently dims.
+  useEffect(() => {
+    if (reduced || !visible) return
+    let t = 0
+    const schedule = () => {
+      t = window.setTimeout(() => {
+        setDim(true)
+        t = window.setTimeout(() => {
+          setDim(false)
+          schedule()
+        }, 3800 + Math.random() * 1800)
+      }, 15000 + Math.random() * 10000)
+    }
+    schedule()
+    return () => {
+      window.clearTimeout(t)
+      setDim(false)
+    }
+  }, [reduced, visible])
 
   useEffect(() => {
     const root = rootRef.current
@@ -83,7 +111,31 @@ export function Scene({ descended = false }: { descended?: boolean }) {
         <Sky reduced={reduced} mobile={mobile} />
       </ParallaxLayer>
       <ParallaxLayer depth={4}>
-        <Moon />
+        {/* intro: the moon emerges from cloud (soft blur + dim lifting away) */}
+        <m.div
+          className="absolute inset-0"
+          initial={fromIntro ? { opacity: 0.15, filter: 'blur(6px)' } : false}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          transition={introPlaying ? { duration: 1.3, ease: [0.16, 1, 0.3, 1], delay: 0.1 } : { duration: 0.3 }}
+        >
+          <Moon />
+        </m.div>
+        {/* a passing cloud veils the moon now and then */}
+        <m.div
+          className="absolute"
+          style={{
+            left: 'clamp(-120px, -4vw, 40px)',
+            top: 'clamp(-40px, 2vh, 50px)',
+            width: 'clamp(260px, 30vw, 460px)',
+            height: 'clamp(110px, 12vw, 190px)',
+            background:
+              'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(26,30,54,0.85), rgba(26,30,54,0.5) 45%, transparent 72%)',
+            filter: 'blur(10px)',
+          }}
+          initial={false}
+          animate={dim ? { x: '18vw', opacity: 1 } : { x: '-28vw', opacity: 0 }}
+          transition={{ duration: dim ? 3.2 : 4.5, ease: [0.45, 0, 0.35, 1] }}
+        />
       </ParallaxLayer>
       {!reduced && (
         <ParallaxLayer depth={5}>
@@ -104,6 +156,7 @@ export function Scene({ descended = false }: { descended?: boolean }) {
       <ParallaxLayer depth={16}>
         <Tombstones mobile={mobile} />
         <Pumpkins mobile={mobile} />
+        {!reduced && <Wisps mobile={mobile} paused={!visible} />}
       </ParallaxLayer>
       {!mobile && (
         <>
@@ -113,9 +166,17 @@ export function Scene({ descended = false }: { descended?: boolean }) {
           </ParallaxLayer>
         </>
       )}
-      <ParallaxLayer depth={20}>
-        <GroundFog reduced={reduced} />
-      </ParallaxLayer>
+      {/* intro: fog rolls in from below */}
+      <m.div
+        className="absolute inset-0"
+        initial={fromIntro ? { opacity: 0, y: 50 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={introPlaying ? { duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.3 } : { duration: 0.3 }}
+      >
+        <ParallaxLayer depth={20}>
+          <GroundFog reduced={reduced} />
+        </ParallaxLayer>
+      </m.div>
       </m.div>
       {/* soft vignette keeps the edges dark and the centre readable */}
       <div
@@ -125,6 +186,23 @@ export function Scene({ descended = false }: { descended?: boolean }) {
             'radial-gradient(ellipse 90% 80% at 50% 42%, transparent 50%, rgba(4,5,10,0.5) 82%, rgba(4,5,10,0.85) 100%)',
         }}
       />
+      {/* moon-dimming when a cloud crosses: cool night-blue, never black */}
+      <m.div
+        className="absolute inset-0"
+        style={{ background: 'rgba(10,12,28,1)' }}
+        initial={false}
+        animate={{ opacity: dim ? 0.16 : 0 }}
+        transition={{ duration: 2.6, ease: [0.45, 0, 0.35, 1] }}
+      />
+      {/* intro: the scene starts dark and the night slowly opens */}
+      {fromIntro && (
+        <m.div
+          className="absolute inset-0 bg-night-950"
+          initial={{ opacity: 0.94 }}
+          animate={{ opacity: 0 }}
+          transition={introPlaying ? { duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.05 } : { duration: 0.3 }}
+        />
+      )}
       {interactive && <CandleGlow />}
     </div>
   )
