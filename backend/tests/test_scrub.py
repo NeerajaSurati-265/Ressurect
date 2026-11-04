@@ -54,3 +54,20 @@ def test_cap_keeps_the_end():
     out = cap_text(text, 1000)
     assert len(out.encode()) <= 1000 and out.endswith("line4999")
     assert cap_text("short", 1000) == "short"
+
+
+@pytest.mark.parametrize("text,kept", [
+    ("MONGO_URL=mongodb://admin:hunter2@localhost:27017/db", "mongodb://admin:[REDACTED]@localhost:27017/db"),
+    ("connect postgres://app:s3cr3t!@db.example.com/x failed", "postgres://app:[REDACTED]@db.example.com/x"),
+    ("redis://:pw@h", None),
+])
+def test_url_credentials_redacted(text, kept):
+    out = scrub(text)
+    assert "hunter2" not in out and "s3cr3t" not in out
+    if kept:
+        assert kept in out
+
+
+def test_urls_without_credentials_untouched():
+    for t in ("https://github.com/o/n", "mongodb://localhost:27017/db", "GET http://127.0.0.1:8000/docs -> 200"):
+        assert scrub(t) == t

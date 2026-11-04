@@ -69,3 +69,37 @@ def probe(graves_url: str, res_id: str) -> ProbeResult:
     except httpx.HTTPError as exc:
         details.append(f"Request failed: {exc.__class__.__name__}")
         return ProbeResult(False, "The site did not answer in time.", details)
+
+
+BACKEND_TIMEOUT = 12.0     # a cold start (image pull + app boot) can take several seconds
+BACKEND_BUDGET = 20.0      # total seconds one poll may spend probing
+FORBIDDEN_BODY = "forbidden"
+
+
+def probe_backend(base_url: str, paths: List[str], now=None) -> ProbeResult:
+    """Alive on any HTTP status below 500 from the first path that answers.
+
+    A timeout stops the probe at once (every path would time out too). A 403 "Forbidden" is what a
+    Function URL returns when its public permission is missing, so it never counts as alive.
+    """
+    import time
+
+    base = base_url.rstrip("/")
+    details: List[str] = []
+    deadline = time.monotonic() + BACKEND_BUDGET
+    try:
+        with httpx.Client(follow_redirects=False) as client:
+            for path in paths:
+                left = deadline - time.monotonic()
+                if left <= 0.5:
+                    break
+                resp = client.get(base + path, timeout=min(BACKEND_TIMEOUT, left))
+                details.append(f"GET {base}{path} -> {resp.status_code}")
+                if resp.status_code == 403 and FORBIDDEN_BODY in resp.text.lower()[:200]:
+                    return ProbeResult(False, "The function URL is not public (403 Forbidden).", details)
+                if resp.status_code < 500:
+                    return ProbeResult(True, f"The app answered HTTP {resp.status_code} on {path}.", details)
+    except httpx.HTTPError as exc:
+        details.append(f"Request failed: {exc.__class__.__name__}")
+        return ProbeResult(False, "The app did not answer in time.", details)
+    return ProbeResult(False, "The app answered with server errors.", details)

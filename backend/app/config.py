@@ -30,6 +30,11 @@ class Settings:
     reaper_arn: str
     scheduler_role_arn: str
     schedule_group: str
+    backends_enabled: bool = False
+    max_live_backends: int = 2
+    codebuild_apps_project: str = "resurrect-build-apps"
+    ecr_apps_uri: str = ""
+    app_exec_role_arn: str = ""
 
 
 def settings() -> Settings:
@@ -52,6 +57,11 @@ def settings() -> Settings:
         reaper_arn=e("REAPER_ARN", ""),
         scheduler_role_arn=e("SCHEDULER_ROLE_ARN", ""),
         schedule_group=e("SCHEDULE_GROUP", "resurrect"),
+        backends_enabled=e("BACKENDS_ENABLED", "false").lower() == "true",
+        max_live_backends=int(e("MAX_LIVE_BACKENDS", "2")),
+        codebuild_apps_project=e("CODEBUILD_APPS_PROJECT", "resurrect-build-apps"),
+        ecr_apps_uri=e("ECR_APPS_URI", ""),
+        app_exec_role_arn=e("APP_EXEC_ROLE_ARN", ""),
     )
 
 

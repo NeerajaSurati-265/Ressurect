@@ -37,3 +37,7 @@ output "scheduler_role_arn" {
 output "schedule_group" {
   value = aws_scheduler_schedule_group.resurrect.name
 }
+
+output "ecr_apps_uri" {
+  value = aws_ecr_repository.apps.repository_url
+}

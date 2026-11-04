@@ -5,9 +5,9 @@ import secrets
 from typing import Optional
 
 from . import autopsy as autopsy_mod
-from . import builds, config, github, limits, store
+from . import builds, config, functions, github, limits, store
 from .errors import ApiException
-from .models import Resurrection, StoredRecord
+from .models import Finding, Resurrection, StoredRecord
 from .timeutil import iso, now_utc
 
 ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -23,6 +23,23 @@ def _require_enabled() -> None:
                            "Resurrections are paused for now. Please try again later.")
 
 
+TOO_MANY = Finding(
+    id="too-many-backends", severity="block", title="Too many backends are awake",
+    detail="Too many backends are awake right now; try again in a few minutes.",
+    fix="Try again in a few minutes.", file=None)
+
+
+def _enforce_live_cap(rec: StoredRecord) -> None:
+    """At most MAX_LIVE_BACKENDS backend functions at once. Over the cap: cannot_rise, no quota used."""
+    if functions.count_live() < config.settings().max_live_backends:
+        return
+    a = rec.res.autopsy
+    a.findings = a.findings + [TOO_MANY]
+    a.verdict = "blocked"
+    a.summary = TOO_MANY.detail
+    rec.backend = None
+
+
 def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult,
                    admin_header: Optional[str] = None) -> None:
     """Copy the autopsy outcome into the record and start a build unless it is blocked."""
@@ -30,15 +47,24 @@ def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult,
     r.repo = result.repo
     r.autopsy = result.autopsy
     r.stack = result.autopsy.stack
-    r.deployable = autopsy_mod.is_deployable(result.autopsy)
     rec.package_json = result.package_json
+    rec.backend = result.backend
+    rec.function_url = None
+    rec.function_created_at = None
+    if rec.backend is not None and autopsy_mod.is_deployable(r.autopsy, rec.backend):
+        _enforce_live_cap(rec)  # over the cap: blocks the autopsy and drops the backend info
+    r.deployable = autopsy_mod.is_deployable(r.autopsy, rec.backend)
     if not r.deployable:
         r.status = "cannot_rise"
         r.phase_message = "Cannot rise yet"
         rec.build_id = None
         return
     limits.reserve_build(admin_header)  # counts only builds that really start
-    rec.build_id = builds.start(r.id, r.repo.url, r.stack, r.autopsy.app_dir, r.repo.commit_sha)
+    if rec.backend is not None:
+        rec.build_id = builds.start(r.id, r.repo.url, r.stack, r.autopsy.app_dir, r.repo.commit_sha,
+                                    backend=rec.backend)
+    else:
+        rec.build_id = builds.start(r.id, r.repo.url, r.stack, r.autopsy.app_dir, r.repo.commit_sha)
     r.status = "summoning"
     r.phase_message = "Summoning"
 

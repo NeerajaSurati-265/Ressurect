@@ -1,0 +1,130 @@
+version: 0.2
+
+# Builds a student backend (FastAPI, Flask, Django, Express, Fastify) into a Lambda container image.
+# Used by the resurrect-build-apps CodeBuild project only (privileged: it runs docker build).
+#
+# Variables supplied by StartBuild:
+#   REPO_URL, RES_ID, RUNTIME (python | node), ENTRY (shell command that starts the app),
+#   APP_PORT (port the app listens on), APP_DIR (default "."), DJANGO_PROJECT (Django only),
+#   COMMIT_SHA, ECR_APPS_URI (also set on the project).
+# Student pip/npm commands run INSIDE `docker build`. This project's role (ECR push) must never be
+# reachable from there, so the build blocks the container credential and metadata endpoints first.
+# RESURRECT_LOCAL=1 (local tests only): copy $LOCAL_SRC instead of cloning, skip ECR login and push.
+env:
+  shell: bash
+
+phases:
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        APP_DIR="${APP_DIR:-.}"
+
+        # ---- validate what we are about to splice into files and shell lines
+        [[ "$RES_ID" =~ ^r-[a-z0-9]{6}$ ]] || { echo "bad RES_ID" >&2; exit 1; }
+        [[ "$RUNTIME" =~ ^(python|node)$ ]] || { echo "bad RUNTIME" >&2; exit 1; }
+        [[ "$APP_PORT" =~ ^[0-9]{2,5}$ ]] || { echo "bad APP_PORT" >&2; exit 1; }
+        [[ "$ENTRY" =~ ^[A-Za-z0-9_./:\(\)\"\ =,@-]+$ ]] || { echo "bad ENTRY" >&2; exit 1; }
+        [[ -z "${DJANGO_PROJECT:-}" || "$DJANGO_PROJECT" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "bad DJANGO_PROJECT" >&2; exit 1; }
+        [[ "$APP_DIR" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && "$APP_DIR" != *..* ]] || { echo "bad APP_DIR" >&2; exit 1; }
+
+        echo "::resurrect:: phase=cloning"
+        rm -rf src ctx
+        if [ -n "${RESURRECT_LOCAL:-}" ]; then
+          cp -r "$LOCAL_SRC" src
+        else
+          git clone --depth 1 "$REPO_URL" src
+        fi
+        mkdir -p ctx
+        cp -r "src/$APP_DIR" ctx/app
+        rm -rf ctx/app/.git ctx/app/node_modules ctx/app/__pycache__ ctx/app/.venv ctx/app/venv
+
+        echo "::resurrect:: phase=installing"
+        # ---- the entrypoint runs inside the container on every cold start
+        cat > ctx/resurrect-start.sh <<'START'
+        #!/bin/bash
+        set -e
+        # The Lambda filesystem is read-only except /tmp: run from a writable copy so relative
+        # SQLite files work.
+        rm -rf /tmp/app && cp -r /var/task/app /tmp/app && cd /tmp/app
+        mkdir -p /tmp/app /tmp/static
+        export DATABASE_URL="${DATABASE_URL:-sqlite:////tmp/app/app.db}"
+        export HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="/tmp/app:${PYTHONPATH:-}"
+        if [ -n "${RESURRECT_DJANGO_PROJECT:-}" ]; then
+          cat > resurrect_settings.py <<PYEOF
+        from ${RESURRECT_DJANGO_PROJECT}.settings import *  # noqa
+        ALLOWED_HOSTS = ["*"]
+        DEBUG = False
+        CSRF_TRUSTED_ORIGINS = ["https://*.on.aws"]
+        STATIC_ROOT = "/tmp/static"
+        _db = DATABASES.get("default", {}) if "DATABASES" in globals() else {}
+        if not _db or "sqlite" in _db.get("ENGINE", "sqlite"):
+            DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": "/tmp/app/db.sqlite3"}}
+        try:
+            import whitenoise  # noqa
+            MIDDLEWARE = list(MIDDLEWARE)
+            if "whitenoise.middleware.WhiteNoiseMiddleware" not in MIDDLEWARE:
+                MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+        except ImportError:
+            pass
+        PYEOF
+          export DJANGO_SETTINGS_MODULE=resurrect_settings
+          python manage.py migrate --noinput || echo "resurrect: migrate failed, starting anyway" >&2
+          python manage.py collectstatic --noinput || true
+        fi
+        eval "exec $RESURRECT_ENTRY"
+        START
+        chmod +x ctx/resurrect-start.sh
+
+        # ---- Dockerfile (generated here; never committed into the student repo)
+        ENTRY_ESC="${ENTRY//\"/\\\"}"   # a Dockerfile ENV value strips unescaped double quotes
+        ADAPTER='COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter'
+        if [ "$RUNTIME" = "python" ]; then
+          cat > ctx/Dockerfile <<DOCKER
+        FROM public.ecr.aws/docker/library/python:3.12-slim
+        $ADAPTER
+        WORKDIR /var/task/app
+        COPY app/ /var/task/app/
+        RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; \\
+            elif [ -f pyproject.toml ]; then pip install --no-cache-dir . ; fi \\
+            && (python -c "import uvicorn" 2>/dev/null || pip install --no-cache-dir uvicorn) \\
+            && (python -c "import gunicorn" 2>/dev/null || pip install --no-cache-dir gunicorn)
+        COPY resurrect-start.sh /var/task/resurrect-start.sh
+        ENV AWS_LWA_PORT=$APP_PORT AWS_LWA_READINESS_CHECK_PATH=/ AWS_LWA_READINESS_CHECK_MIN_UNHEALTHY_STATUS=500
+        ENV RESURRECT_ENTRY="$ENTRY_ESC" RESURRECT_DJANGO_PROJECT="${DJANGO_PROJECT:-}"
+        CMD ["/var/task/resurrect-start.sh"]
+        DOCKER
+        else
+          cat > ctx/Dockerfile <<DOCKER
+        FROM public.ecr.aws/docker/library/node:20-slim
+        $ADAPTER
+        WORKDIR /var/task/app
+        COPY app/ /var/task/app/
+        RUN (npm ci || npm install) && npm run build --if-present && (npm prune --omit=dev || true)
+        COPY resurrect-start.sh /var/task/resurrect-start.sh
+        ENV PORT=8080 NODE_ENV=production
+        ENV AWS_LWA_PORT=$APP_PORT AWS_LWA_READINESS_CHECK_PATH=/ AWS_LWA_READINESS_CHECK_MIN_UNHEALTHY_STATUS=500
+        ENV RESURRECT_ENTRY="$ENTRY_ESC"
+        CMD ["/var/task/resurrect-start.sh"]
+        DOCKER
+        fi
+
+        echo "::resurrect:: phase=building"
+        if [ -z "${RESURRECT_LOCAL:-}" ]; then
+          # docker build runs the student's pip/npm commands. Keep the CodeBuild role credentials
+          # (container credentials endpoint) and instance metadata out of reach of those containers.
+          iptables -I DOCKER-USER -d 169.254.170.2 -j DROP
+          iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
+        fi
+        IMAGE="${ECR_APPS_URI:-resurrect-local}:$RES_ID"
+        # Lambda only accepts a single-platform image manifest, not the index buildx adds for
+        # provenance/SBOM attestations. The env var is ignored by Docker versions without buildx.
+        export BUILDX_NO_DEFAULT_ATTESTATIONS=1
+        docker build --platform linux/amd64 -t "$IMAGE" ctx
+
+        if [ -z "${RESURRECT_LOCAL:-}" ]; then
+          echo "::resurrect:: phase=uploading"
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "${ECR_APPS_URI%%/*}"
+          docker push "$IMAGE"
+        fi
+        echo "::resurrect:: phase=done"

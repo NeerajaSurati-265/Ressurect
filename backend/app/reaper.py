@@ -7,7 +7,7 @@ import re
 import time
 import uuid
 
-from . import config, store
+from . import config, functions, store
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -80,7 +80,10 @@ def handler(event, context=None):
 
     deleted = _delete_prefix("graves/%s/" % res_id)
     invalidation = _invalidate(res_id)
+    line = {}
+    if rec is None or rec.backend is not None:  # backend apps: function (and URL), image, log group
+        line["backend_cleanup"] = functions.cleanup(res_id)
     result = _mark_expired(res_id)
     logger.info(json.dumps({"event": "reaper", "id": res_id, "result": result, "deleted": deleted,
-                            "invalidation": invalidation, "ms": int((time.time() - started) * 1000)}))
+                            "invalidation": invalidation, "ms": int((time.time() - started) * 1000), **line}))
     return {"ok": True, "id": res_id, "result": result, "deleted": deleted}

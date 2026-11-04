@@ -101,6 +101,20 @@ class CreateResurrectionRequest(BaseModel):
     repo_url: str
 
 
+class BackendInfo(BaseModel):
+    """Internal build/run facts for a backend app. Never part of the public API."""
+
+    framework: str                    # fastapi | flask | django | express | fastify
+    runtime: str                      # python | node
+    entry: str                        # shell command that starts the app
+    app_port: int                     # port the app listens on inside the container
+    live_path: str = ""               # appended to the function URL (e.g. "/docs")
+    probe_paths: List[str] = []
+    django_project: Optional[str] = None
+    uses_sqlite: bool = False
+    has_build_script: bool = False
+
+
 class StoredRecord(BaseModel):
     """What lives in DynamoDB: the public record plus internal bookkeeping."""
 
@@ -112,6 +126,9 @@ class StoredRecord(BaseModel):
     pulse_lines: List[LogLine] = []
     client_ip: Optional[str] = None
     package_json: Optional[str] = None  # trimmed copy for the error ghost
+    backend: Optional[BackendInfo] = None  # B4: how to build and run a backend app (internal)
+    function_url: Optional[str] = None      # B4: the rz-<id> Function URL once created
+    function_created_at: Optional[str] = None
     version: int = 0
 
     def to_api(self, server_time: str) -> dict:

@@ -1,5 +1,7 @@
 # Resurrect infrastructure (us-east-1)
 
+> **WARNING: Until `feat/backends` is merged, run `terraform apply` only from `feat/backends`. Applying from `feat/backend` or `main` will destroy the B4 resources.**
+
 Terraform for the whole AWS side. State is local (`infra/terraform.tfstate`, never committed).
 The CLI default region may differ, so export it first:
 

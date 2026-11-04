@@ -9,8 +9,8 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 
-from . import ghost, github
-from .models import Autopsy, Finding, RepoRef
+from . import config, detect, ghost, github
+from .models import Autopsy, BackendInfo, Finding, RepoRef
 
 APP_DIR_CANDIDATES = ["frontend", "client", "web", "app", "site"]
 SERVER_DEPS = ["express", "fastify", "koa", "@nestjs/core", "next"]
@@ -24,20 +24,24 @@ def _join(app_dir: str, name: str) -> str:
     return name if app_dir == "." else f"{app_dir}/{name}"
 
 
-def pick_app_dir(paths: List[str]) -> str:
+def pick_app_dir(paths: List[str], backends: bool = False) -> str:
     s = set(paths)
     if "package.json" in s or "index.html" in s:
         return "."
     for d in APP_DIR_CANDIDATES:
         if f"{d}/package.json" in s or f"{d}/index.html" in s:
             return d
+    if backends:  # appended after the existing five, so frontend/ still wins over backend/
+        for d in detect.BACKEND_DIR_CANDIDATES:
+            if any(f"{d}/{m}" in s for m in detect.BACKEND_MARKERS):
+                return d
     return "."
 
 
-def plan_fetch(paths: List[str]) -> Tuple[str, List[str]]:
+def plan_fetch(paths: List[str], backends: bool = False) -> Tuple[str, List[str]]:
     """Which up-to-four files to read from raw.githubusercontent.com."""
     s = set(paths)
-    app_dir = pick_app_dir(paths)
+    app_dir = pick_app_dir(paths, backends)
     wanted: List[str] = []
     for name in ["package.json"]:
         if _join(app_dir, name) in s:
@@ -81,18 +85,29 @@ def _engine_requires_above_20(spec: str) -> bool:
     return True
 
 
-def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[str]]:
+def analyze(paths: List[str], files: Dict[str, str],
+            backends: Optional[bool] = None) -> Tuple[Autopsy, Optional[str]]:
     """Pure rules over a file list and the fetched files. Returns (autopsy, package_json text)."""
+    autopsy, pkg_text, _ = analyze_ex(paths, files, backends)
+    return autopsy, pkg_text
+
+
+def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool] = None
+               ) -> Tuple[Autopsy, Optional[str], Optional[BackendInfo]]:
+    """Like analyze, plus the backend run info (only ever set when backends are enabled)."""
+    if backends is None:
+        backends = config.settings().backends_enabled
     s = set(paths)
+    info: Optional[BackendInfo] = None
     findings: List[Finding] = []
 
     if not paths:
         findings.append(_finding("empty-repo", "block", "Nothing to resurrect",
                                  "This repo has no files on its default branch.",
                                  "Push your code to the default branch."))
-        return _finish("unknown", ".", findings, files), None
+        return _finish("unknown", ".", findings, files), None, None
 
-    app_dir = pick_app_dir(paths)
+    app_dir = pick_app_dir(paths, backends)
     pkg_path = _join(app_dir, "package.json")
     has_pkg = pkg_path in s
     has_index = _join(app_dir, "index.html") in s
@@ -108,6 +123,8 @@ def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[
     has_build = bool((pkg.get("scripts") or {}).get("build"))
     python_file = next((m for m in PYTHON_MARKERS
                         if _join(app_dir, m) in s or m in s), None)
+
+    be = detect.detect(app_dir, paths, files, pkg, has_pkg) if backends else None
 
     stack = "unknown"
     if has_pkg and "react-scripts" in deps:
@@ -128,6 +145,9 @@ def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[
         else:
             findings.append(_finding("stack-vite", "ok", "React app built with Vite",
                                      "package.json depends on vite and index.html is in place.", None, "package.json"))
+    elif be is not None and not (has_pkg and ("react-scripts" in deps or "vite" in deps)):
+        stack, info = be.stack, be.info
+        findings.extend(be.findings)
     elif python_file and not (has_index and not has_pkg):
         stack = "python"
         findings.append(_finding("stack-python", "block", "Python project",
@@ -177,7 +197,7 @@ def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[
                                      "We override it during the build; check your asset paths.", cfg))
             break
 
-    return _finish(stack, app_dir, findings, files), pkg_text
+    return _finish(stack, app_dir, findings, files), pkg_text, info
 
 
 def _finish(stack: str, app_dir: str, findings: List[Finding], files: Optional[Dict[str, str]] = None) -> Autopsy:
@@ -193,8 +213,10 @@ def _finish(stack: str, app_dir: str, findings: List[Finding], files: Optional[D
                    findings=findings, source=source)
 
 
-def is_deployable(autopsy: Autopsy) -> bool:
-    return autopsy.verdict != "blocked" and autopsy.stack in ("static", "react-vite", "react-cra")
+def is_deployable(autopsy: Autopsy, backend: Optional[BackendInfo] = None) -> bool:
+    if autopsy.verdict == "blocked":
+        return False
+    return autopsy.stack in ("static", "react-vite", "react-cra") or backend is not None
 
 
 @dataclass
@@ -202,6 +224,7 @@ class AutopsyResult:
     autopsy: Autopsy
     repo: RepoRef
     package_json: Optional[str]
+    backend: Optional[BackendInfo] = None
 
 
 def run(parsed: github.ParsedUrl) -> AutopsyResult:
@@ -213,9 +236,13 @@ def run(parsed: github.ParsedUrl) -> AutopsyResult:
         name = meta.get("name") or parsed.name
         branch = meta.get("default_branch") or "main"
         paths, sha = github.fetch_tree_and_sha(client, owner, name, branch)
-        _, wanted = plan_fetch(paths)
+        backends = config.settings().backends_enabled
+        app_dir, wanted = plan_fetch(paths, backends)
         files = github.fetch_raw_files(client, owner, name, branch, wanted)
-    autopsy, pkg_text = analyze(paths, files)
+        if backends:  # entry modules and Django settings, once we know what the first files say
+            more = detect.extra_files(app_dir, paths, files)
+            files.update(github.fetch_raw_files(client, owner, name, branch, more))
+    autopsy, pkg_text, backend = analyze_ex(paths, files, backends)
     repo = RepoRef(owner=owner, name=name, url=f"https://github.com/{owner}/{name}",
                    default_branch=branch, commit_sha=sha)
-    return AutopsyResult(autopsy=autopsy, repo=repo, package_json=(pkg_text or "")[:6000] or None)
+    return AutopsyResult(autopsy=autopsy, repo=repo, package_json=(pkg_text or "")[:6000] or None, backend=backend)

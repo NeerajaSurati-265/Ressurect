@@ -211,3 +211,76 @@ Applied B3 (3 changed). `infra/outputs.json` regenerated (10 outputs, 0 secret-p
 **Open issues**: Scheduler fires ~45 s after `at()`. Live sites left running: `r-80q9rm`, `r-ccs3zj` (expire in 20 min; older failed/test sites such as `r-qm4pxy` stay in S3 until the 2-day lifecycle). The tester's IP is rate-limited until the top of the hour from the 429 test; use `localStorage["resurrect.admin"]`.
 
 **Next: merge to main at 6 PM.**
+
+## B4 — backends (branch `feat/backends`)
+
+### Phase 0 — Preflight: DONE
+- Lambda account limit: `ConcurrentExecutions` 10, `UnreservedConcurrentExecutions` 10 (a quota increase to 1,000 has been requested). Below 100, so **no reserved concurrency anywhere**; `PutFunctionConcurrency` is not granted. Safety comes from a 30 s timeout on `rz-*` functions (Django's cold start needs it), the 20-minute TTL and `MAX_LIVE_BACKENDS` (default 2, env var).
+- **BACKENDS_ENABLED must stay `false` in the demo unless the Lambda concurrency quota is above 100.** The API, the reaper and every awake backend share 10 slots, so a burst of backend traffic could throttle the API.
+- Local Docker 29.9.3 (linux/x86_64) is available for Phase 3 checks. `resurrect-build` is not privileged, so a separate privileged project `resurrect-build-apps` is used and `resurrect-build` plus `buildspec/static-react.yml` stay byte-for-byte unchanged.
+
+### Phase 1 — Infra: written, plan shown, not applied
+Files: `infra/apps.tf` (new), `buildspec/backend-container.yml` (placeholder until Phase 3), `infra/lambda.tf` (env vars only), `infra/variables.tf` (`backends_enabled` "false", `max_live_backends` 2), `infra/outputs.tf` (`ecr_apps_uri`).
+Plan: 10 to add, 3 to change, 0 to destroy; `fmt` and `validate` pass.
+
+> **WARNING: Until `feat/backends` is merged, run `terraform apply` only from `feat/backends`. Applying from `feat/backend` or `main` will destroy the B4 resources.**
+
+- Phase 1 is NOT applied. The Phase 1 apply, and everything else that changes AWS, waits for the merge of `feat/backend` (date to be decided, not 6 PM) AND an explicit "go" from the user. Until then: local code, tests and local Docker only.
+
+### Phase 2 — Detection: DONE locally (nothing applied, no AWS calls)
+**Files**: `app/detect.py` (new), `app/autopsy.py` (`analyze_ex`, `pick_app_dir`/`plan_fetch` take `backends`, second fetch round for entry modules), `app/models.py` (`BackendInfo`, `StoredRecord.backend`, both internal), `app/config.py` (`backends_enabled`, `max_live_backends`, `codebuild_apps_project`, `ecr_apps_uri`, `app_exec_role_arn`), `tests/test_detect.py` (49 tests).
+**Check**: `env -u PYTHONPATH .venv/bin/python -m pytest -q tests` -> 248 passed (199 existing unchanged + 49 new).
+- Covered: FastAPI in `main.py`, `app/main.py`, `backend/`, `src/main.py`, `api/main.py`; custom var name; first match wins; pyproject; no `app = FastAPI()` -> block with "Add `app = FastAPI()` in main.py"; Flask plain and `create_app` factory; Django with and without wsgi; Express with start script, port 5000 hard-coded, `main` field, default port; Fastify; Mongo app -> `warn` not block; SQLite -> `ok`; Next/Nest/Koa, Go, Ruby, Java, PHP stay blocked; frontend stacks unaffected.
+- **Flag off**: all four backend kinds are `cannot_rise` exactly as before (`stack-python` / `stack-node-server`), and a repo with only `server/package.json` gives today's result (`unknown`, app_dir `.`, only `stack-unknown`, no extra fetches).
+- **Flag on**: `backend/`, `server/`, `api/` are appended after the existing five, so a repo with both `frontend/` and `backend/` picks `frontend/` (React).
+
+**Decisions**
+- Node port: a literal `listen(5000)` -> adapter port 5000; `process.env.PORT` anywhere -> 8080 (we set `PORT=8080`); neither -> 3000 (the B4 default).
+- `is_deployable` is NOT widened yet. With the flag on, a detected backend currently still ends as `cannot_rise`; Phase 4 wires `builds.start`, the state machine and `is_deployable` together so a half-wired backend can never start a static build.
+- Backend detection only runs for the "python / node server" branches; Vite and CRA keep priority, so a React app that also lists express is still React.
+
+**Next**: Phase 3 (buildspec) is code-only and can proceed locally; Phase 1 apply and all live checks wait for the merge and an explicit "go".
+
+### Phase 3 — Build (buildspec): DONE locally (no AWS)
+**Files**: `buildspec/backend-container.yml` (the block that `resurrect-build-apps` runs), `scripts/local_backend_build.sh` (runs that exact block locally, then `docker run` + curl), `backend/tests/fixtures/apps/{fastapi-sqlite,flask-factory,django-min,express-5000}/`, `tests/test_buildspec.py`. `buildspec/static-react.yml` and `infra/codebuild.tf` are byte-for-byte unchanged (a test asserts the former).
+**Checks** (Docker 29.9.3 local, containers run `--read-only --tmpfs /tmp --user 1000:1000` to mimic Lambda):
+- YAML parses; the block passes `bash -n`.
+- FastAPI (relative `notes.db`): `/docs` 200; `POST /notes` then `GET /notes` returns `["hello"]`, so SQLite in `/tmp/app` works on a read-only filesystem.
+- Flask factory (`"app:create_app()"`): 200. Django (migrate + generated `resurrect_settings.py`, ALLOWED_HOSTS `*`): `/` 200, `/admin/login/` 200. Express with `listen(5000)` and `npm start`: 200 on 5000.
+- Test suite: 262 passed (new: `test_buildspec.py`, 14 tests: syntax, inputs rejected before cloning, security assertions).
+
+**Bugs found by running it for real**
+- buildx added a provenance/SBOM attestation index to the image. Lambda rejects image indexes, so the buildspec sets `BUILDX_NO_DEFAULT_ATTESTATIONS=1` (ignored by Docker versions without buildx).
+- A Dockerfile `ENV` value strips double quotes, which broke the Flask factory entry (`"app:create_app()"`). The entry is now escaped for the Dockerfile.
+
+**Security notes**
+- Student `pip`/`npm` runs inside `docker build`. The build container could otherwise reach the CodeBuild role credentials at `169.254.170.2`, so the buildspec first adds `iptables -I DOCKER-USER ... -j DROP` for `169.254.170.2` and `169.254.169.254`. **This cannot be tested locally and must be verified in Phase 5** (a test repo whose install step tries to curl the credentials endpoint must fail). Even if it leaked, that role can only push to `resurrect-apps`.
+- `RES_ID`, `RUNTIME`, `APP_PORT`, `ENTRY`, `DJANGO_PROJECT` and `APP_DIR` are regex-validated before anything is written or run; detection also only accepts identifier-shaped Django project names.
+- Only `public.ecr.aws` images are pulled (no Docker Hub limits). Slim images have no compiler, so Python packages that need to build from source will fail to install; that becomes a ghost.
+- The 169.254 DROP rules need `iptables` in the CodeBuild image; if the rules fail, the build fails (fail closed).
+
+### Phase 4 — Deploy, state machine, pulse, reaper: DONE locally (fake AWS; nothing applied)
+**Files**: `app/functions.py` (new), `app/pulse.py` (`probe_backend`), `app/statemachine.py`, `app/service.py` (live cap), `app/builds.py` (project by backend), `app/reaper.py`, `app/autopsy.py` (`is_deployable(autopsy, backend)`), `app/models.py` (`function_url`, `function_created_at`), `app/scrub.py`, `infra/apps.tf` (+`lambda:GetFunctionUrlConfig`; API may also `BatchDeleteImage` and `DeleteLogGroup` for failed apps), `tests/test_backends.py` (25 tests).
+**Check**: `pytest tests` -> **287 passed** (the 199 B3 tests are unchanged and pass), also with AWS credentials unset. `terraform fmt -check` and `validate` pass. `static-react.yml`, `codebuild.tf`, `contracts/`, `frontend/` have no diff.
+
+**How it works (backend stacks only; the static path is untouched)**
+- `builds.start(..., backend=info)` uses `resurrect-build-apps` with `RUNTIME/ENTRY/APP_PORT/DJANGO_PROJECT/ECR_APPS_URI` (no `BUCKET`); otherwise exactly as before.
+- CodeBuild `SUCCEEDED` -> stays `building`, `phase_message` "Raising the server", `functions.create` (log group + 1-day retention first, `rz-<id>`: image, 1024 MB, **30 s**, 1024 MB ephemeral, x86_64, tag `resurrect-id`; Function URL AuthType NONE + both public permissions; every step tolerates `ResourceConflict`, so a lost race re-running it is harmless). **No reserved concurrency anywhere** (account limit is 10).
+- Each GET: `Active` -> `checking_pulse`; `Failed`/missing -> `failed` with a ghost that includes `StateReasonCode` and reason; `Pending` for 3 minutes -> `failed`.
+- Pulse: `/health`, `/docs` (or `/openapi.json`), `/`, plus `/admin/` for Django, first answer below 500 wins. 90 s deadline (static stays 60 s), max 20 attempts. A timeout stops the poll's probing, and a 403 `Forbidden` (a Function URL with no public permission) never counts as alive.
+- Failure ghost = probe results + the last 50 lines of `/aws/lambda/rz-<id>`, scrubbed. A failed backend is cleaned up at once (function, image, log group) so it does not hold a live slot.
+- `live_url` = function URL + `/docs` for FastAPI (otherwise the URL itself). Expiry/pin unchanged (same schedule, 20 minutes).
+- Reaper: for backend records (and unknown ids) also deletes the function (and URL), the image tag and the log group; NotFound ignored; second run is a no-op. Static records never touch Lambda, ECR or Logs.
+- Live cap `MAX_LIVE_BACKENDS` (env var, default **2**): counted with `ListFunctions` on the `rz-` prefix before any build or quota use. Over the cap: `cannot_rise` with the finding "Too many backends are awake right now; try again in a few minutes." (id `too-many-backends`, no contract change).
+- Flag off: the autopsy never yields backend info, so no Lambda/ECR/Logs client is touched (test fails if one is requested).
+
+**Bug found by the tests**: connection strings such as `mongodb://admin:hunter2@host` were not redacted (the key `MONGO_URL` does not contain "secret/token/password"). `scrub` now redacts the password in any `scheme://user:pass@host`. Matters most for the DB-failure ghosts.
+
+**Open issues / for Phase 5 (all need "go")**
+- Verify in the real CodeBuild project that the `iptables` DROP rules work and that a test repo cannot read the CodeBuild credentials during `docker build`.
+- Verify that Lambda accepts the image (single-manifest) and that the adapter readiness settings let a 404 on `/` count as ready.
+- `ListFunctions` is account-wide (cannot be scoped); the API only reads names with the `rz-` prefix.
+- `terraform apply` will change the API and reaper code hashes (new code), unlike the earlier env-only diff. The Phase 1 apply still waits for the merge and an explicit "go".
+- Account concurrency is 10 until the quota increase lands: keep `BACKENDS_ENABLED=false` for the demo unless it is above 100.
+
+**Next**: Phase 5 (live verification) needs the merge and "go". Remaining local-only work: none planned; I can write the five test repos in `~/resurrect-test-repos/` now if you want them ready.

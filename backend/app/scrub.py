@@ -25,9 +25,14 @@ _KV = re.compile(
 )
 
 
+# scheme://user:password@host (database and broker URLs): keep the shape, drop the password
+_URL_CREDS = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.\-]*://[^\s:/@]+:)[^\s@/]+(@)")
+
+
 def scrub(text: str) -> str:
     for pat in _PATTERNS:
         text = pat.sub(REDACTED, text)
+    text = _URL_CREDS.sub(lambda m: m.group(1) + REDACTED + m.group(2), text)
     return _KV.sub(lambda m: m.group("key") + m.group("sep") + REDACTED, text)
 
 

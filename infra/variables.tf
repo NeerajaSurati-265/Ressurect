@@ -15,3 +15,15 @@ variable "lifetime_minutes" {
   type        = number
   default     = 20
 }
+
+variable "backends_enabled" {
+  description = "Feature flag for backend apps (FastAPI, Flask, Django, Express). Keep \"false\" unless the Lambda concurrency quota is above 100."
+  type        = string
+  default     = "false"
+}
+
+variable "max_live_backends" {
+  description = "How many rz-* backend functions may be alive at once."
+  type        = number
+  default     = 2
+}
