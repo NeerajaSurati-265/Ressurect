@@ -90,7 +90,7 @@ def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[
         findings.append(_finding("empty-repo", "block", "Nothing to resurrect",
                                  "This repo has no files on its default branch.",
                                  "Push your code to the default branch."))
-        return _finish("unknown", ".", findings), None
+        return _finish("unknown", ".", findings, files), None
 
     app_dir = pick_app_dir(paths)
     pkg_path = _join(app_dir, "package.json")
@@ -177,13 +177,13 @@ def analyze(paths: List[str], files: Dict[str, str]) -> Tuple[Autopsy, Optional[
                                      "We override it during the build; check your asset paths.", cfg))
             break
 
-    return _finish(stack, app_dir, findings), pkg_text
+    return _finish(stack, app_dir, findings, files), pkg_text
 
 
-def _finish(stack: str, app_dir: str, findings: List[Finding]) -> Autopsy:
+def _finish(stack: str, app_dir: str, findings: List[Finding], files: Optional[Dict[str, str]] = None) -> Autopsy:
     verdict = ("blocked" if any(f.severity == "block" for f in findings)
                else "warnings" if any(f.severity == "warn" for f in findings) else "healthy")
-    summary, extras, source = ghost.autopsy_summary(stack, findings, verdict)
+    summary, extras, source = ghost.autopsy_summary(stack, findings, files or {})
     # The LLM may only add warnings; it can never add blocks or change the verdict.
     extra_warnings = [f.model_copy(update={"severity": "warn"}) for f in extras][:MAX_EXTRA_WARNINGS]
     findings = findings + extra_warnings

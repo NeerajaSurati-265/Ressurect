@@ -19,6 +19,26 @@
     "type": "string",
     "value": "https://d1jlm6dtvv2shf.cloudfront.net"
   },
+  "reaper_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:lambda:us-east-1:847460071971:function:resurrect-reaper"
+  },
+  "schedule_group": {
+    "sensitive": false,
+    "type": "string",
+    "value": "resurrect"
+  },
+  "scheduler_role_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::847460071971:role/resurrect-scheduler"
+  },
+  "table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "resurrect-records"
+  },
   "ui_distribution_id": {
     "sensitive": false,
     "type": "string",

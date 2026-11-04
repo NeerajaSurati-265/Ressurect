@@ -181,3 +181,16 @@ def test_pinned_never_expires():
     assert statemachine.advance(rec, API, NOW) is False
     rec = make_record("alive", pinned=True, expires_at=None)
     assert statemachine.advance(rec, API, NOW) is False
+
+
+def test_ghost_gets_enough_raw_lines_for_the_real_error(monkeypatch):
+    """The error can be >80 raw lines from the end; logs.tail must hand the ghost far more than 80."""
+    from app import config
+    from tests.helpers import FakeLogs
+
+    fake = FakeLogs(["real error: boom"] + ["boilerplate %d" % i for i in range(150)])
+    monkeypatch.setattr(config, "client", lambda name: fake)
+    rec = make_record("building")
+    rec.log_stream = "s1"
+    lines = logs.tail(rec)
+    assert lines[0] == "real error: boom" and len(lines) == 151

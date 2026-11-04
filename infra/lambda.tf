@@ -117,7 +117,7 @@ resource "aws_lambda_function" "api" {
       RESURRECTIONS_ENABLED  = tostring(var.resurrections_enabled)
       IP_LIMIT_PER_HOUR      = "3"
       DAILY_BUILD_QUOTA      = "50"
-      LIFETIME_MINUTES       = "20"
+      LIFETIME_MINUTES       = tostring(var.lifetime_minutes)
       REAPER_ARN             = aws_lambda_function.reaper.arn
       SCHEDULER_ROLE_ARN     = aws_iam_role.scheduler.arn
       SCHEDULE_GROUP         = local.schedule_group
@@ -182,8 +182,9 @@ data "aws_iam_policy_document" "reaper" {
   }
 
   statement {
+    # Records are one JSON document, so expiring one is a read plus a version-conditional write.
     sid       = "MarkExpired"
-    actions   = ["dynamodb:UpdateItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.records.arn]
   }
 

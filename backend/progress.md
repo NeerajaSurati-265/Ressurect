@@ -134,3 +134,80 @@ Deployed twice (Lambda code only: 0 added, 2 changed, 0 destroyed; the scheduler
 - Ghost `raw_tail` is the unfiltered last 80 build lines; B3's scrubber must redact secrets before sending to Bedrock.
 
 **Next: B3.**
+
+## B3 Steps 1-5 — ghosts, guardrails, expiry, badge: DONE locally (not yet deployed)
+
+**Files added**
+- `app/bedrock.py` — `converse_json` (Converse API, temp 0.2, 1 attempt, connect 2 s, read `timeout_s`), `extract_json`.
+- `app/scrub.py` — secret redaction + `cap_text` (12 KB, keeps the end).
+- `scripts/pin.py` — pin/unpin via the backend's `store` and `expiry` modules; settings from `infra/outputs.json`.
+- `tests/test_{scrub,bedrock,ghost,limits,expiry_reaper,badge}.py`.
+
+**Files changed**
+- `app/ghost.py` — real `explain` and `autopsy_summary` (DESIGN.md prompt verbatim; command blocklist; extras forced to `warn`, ids `llm-*`).
+- `app/limits.py` — `check` (IP limit), `reserve_build` (daily quota), `is_admin` (SSM, cached, `compare_digest`).
+- `app/expiry.py` (`schedule`, `cancel`), `app/reaper.py`, `app/badge.py`.
+- `app/service.py` (quota reserved right before `builds.start`), `app/statemachine.py` and `app/autopsy.py` (new ghost/summary signatures), `app/main.py` (badge route, no-cache headers).
+- `tests/conftest.py` — autouse guards: no real Bedrock or boto3 in tests. `tests/test_api.py` — badge header assertion.
+- `infra/lambda.tf` (reaper DynamoDB Get/Put/Update; `LIFETIME_MINUTES` from a variable), `infra/variables.tf` (`lifetime_minutes`), `infra/outputs.tf` (`table_name`, `reaper_arn`, `scheduler_role_arn`, `schedule_group`).
+
+**Checks**: `env -u PYTHONPATH .venv/bin/python -m pytest -q tests` -> 194 passed. `terraform validate` OK. Package built (3.6 MB). `terraform plan`: 0 add, 4 change, 0 destroy (reaper policy, scheduler policy re-render, both Lambdas).
+
+**Decisions / deviations**
+- Records are a JSON `doc` in DynamoDB, so the reaper and pin script read the record and write it back with `store.save` (version-conditional, retried) instead of a raw UpdateItem. The reaper IAM gained `GetItem` and `PutItem`.
+- Bedrock IAM already allows `foundation-model/*` in all regions plus the us-east-1 inference-profile ARN, so the cross-region `us.` profile needs no change.
+- Reaper accepts only ids matching `^r-[a-z0-9]{6}$`, so an event can never delete outside `graves/r-*`.
+- An earlier local test run wrote rate-limit counters (`ip#<hash of "unknown">#<hour>`, TTL 2 h) to the real table, because tests could reach AWS. Fixed with the conftest guard.
+- `limits.check` keeps its B2 name for the IP limit; `reserve_build` is new.
+
+**Next:** Step 6 (apply after OK, live checks).
+
+## B3 Step 6 — live checks (in progress)
+
+Applied B3 (3 changed). `infra/outputs.json` regenerated (10 outputs, 0 secret-pattern hits).
+
+**Counter cleanup**: scanned `resurrect-records` for `ip#`/`quota#` before testing. Found `quota#2026-11-04` count 3 and `ip#b23a6a8439c0dde5#2026110408` count 3 (hash of the literal "unknown" IP). Real counted builds before this deploy: 0 (limits were a no-op). Both were written by tests; both deleted. Suite re-run with AWS credentials unset and config files pointed at nothing: 194 passed, and `boto3.Session().get_credentials()` is None there.
+
+**First live round (deploy #1)**
+- Autopsy summary on todo-of-the-dead: PASS (`source: rules+llm`, natural summary), but the model added two speculative warnings ("missing favicon", "add react-router-dom") that were false. Prompt tightened (only report what the provided files prove; empty list is normal).
+- Ghost on broken-potion: FAIL. `source: llm` but cause was "Vite build process encountered an error", command `npm ci`. Root cause: the last 80 log lines were CodeBuild boilerplate and the echoed buildspec; the real error (line 77 of 160) was outside the window. Fix: `_visible` drops `[Container]` lines and the echoed script; a "lines that look like errors" block is added to the prompt. Offline replay of the saved log against real Bedrock: 3/3 name `react-router-dom` with `npm install react-router-dom`. Test added (195 pass).
+- Badge: PASS (200, `image/svg+xml`, `cache-control: no-cache, max-age=0`, "alive"; unknown id -> 404 SVG "unknown").
+- Schedule `reap-r-ccs3zj`: PASS (`at(2026-11-04T08:37:43)`, UTC, flex OFF, DELETE, input `{"id": "r-ccs3zj"}`, matches `expires_at`).
+- Pin: PASS. Pin -> `expires_at` null, schedule gone, badge "eternal"; unpin -> +20 min, schedule recreated, badge "alive"; pinning a failed record refused.
+- POST latency: 7.1 s cold, 3.0 s warm (limit 15 s).
+
+**Second/third round (deploys #2 and #3, code-only, same plan shape 0/3/0)**
+- Ghost still wrong live after fix #1: `logs.tail(rec, 80)` cut the raw log to 80 lines *before* the ghost filtered it. `logs.tail` now returns up to 400 lines (CloudWatch limit 800) and the ghost does its own filter + last-80 window. Test added.
+- `_visible` now drops all three echoes of the buildspec script CodeBuild prints (after "Running command set -euo pipefail", "Command did not exit successfully", "Error while executing command"). `tail_window` makes `raw_tail` the last 10 filtered lines, slid back to start at the first error line when it falls within the last 40 lines (otherwise the 10 lines are just stack frames). Fixture `tests/fixtures/broken_potion.log` is the real log (0 secret-pattern hits).
+- Ghost on broken-potion (`r-80q9rm`): PASS. `source: llm`, cause "The project is missing the 'react-router-dom' package.", command `npm install react-router-dom`, confidence high, `raw_tail` 10 lines starting at "error during build:" with the Rolldown error, 0 marker lines.
+- Rate limit: PASS. 3x 201 `cannot_rise` (python), 4th 429 `rate_limited` `retry_after_s` 1944; admin POST afterwards 201. **The tester's IP is now rate-limited until the top of the hour. Frontend testing from this IP must use the admin header (`localStorage["resurrect.admin"]`).** Admin POSTs do not count against the IP limit.
+- Autopsy extras: the model kept adding "X is missing / not provided in the key files" warnings it cannot verify (it sees at most 4 files). `autopsy_summary` now drops any extra that claims absence (regex), and the prompt says so. Test added (199 pass).
+
+**Expiry (temporary `lifetime_minutes=2`, deploy #4)**: PASS
+- POST todo-of-the-dead -> `r-f2ssub` alive 08:33:24, `expires_at` 08:35:24, schedule `at(2026-11-04T08:35:24)`. Autopsy `rules+llm`, 0 extras (absence-claim filter works).
+- Reaper fired 08:36:08 (~44 s after the `at()` time; Scheduler is not second-exact). Log line: `{"event": "reaper", "id": "r-f2ssub", "result": "expired", "deleted": 8, "invalidation": "ICBF54...", "ms": 3957}`.
+- Schedule deleted (ResourceNotFound); `aws s3 ls graves/r-f2ssub/` empty; live URL 404 with the "Rest in peace" page at 08:36:25; GET -> `expired`, "Returned to the grave"; badge "resting".
+- Waited to GET until after the reaper ran, so the GET-time backstop could not mask a reaper failure.
+- Restored `lifetime_minutes` to 20 (plan 0 add / 1 change / 0 destroy, only `LIFETIME_MINUTES` "2" -> "20"). Lambda env confirmed `20`; `terraform plan` shows no changes. The 2-minute window ran from deploy #4 until this restore.
+
+## B3 final state
+
+**Kill switch**: PASS. `resurrections_enabled=false` -> POST 503 `resurrections_disabled` (also with the admin header, and on retry); `/health` `resurrections_enabled:false`. Restored to true right after (plan 0/1/0, only that variable); env shows `true`, `LIFETIME_MINUTES=20`, `/health` true.
+**Retry**: PASS. After the user fixed and pushed broken-potion, `POST /resurrections/r-80q9rm/retry` -> `attempt: 2`, `summoning`, ghost cleared, then `alive` (schedule `reap-r-80q9rm` at 11:53:30, 20 min). A plain POST also works again (201).
+**Log scan** (last 4 h, `resurrect-api` and `resurrect-reaper`): 0 Traceback/ERROR/Exception lines; 0 hits for AKIA/ghp_/github_pat_/sk-/the admin token.
+
+| Check | Result |
+|---|---|
+| Ghost (llm, names react-router-dom, `npm install react-router-dom`, 10 clean raw_tail lines) | PASS (after 3 fixes) |
+| Autopsy summary `rules+llm` | PASS |
+| Badge alive / unknown, no-cache headers | PASS |
+| Expiry: schedule, reaper, S3 empty, 404 RIP, expired, log line | PASS |
+| Pin / unpin / refuse non-alive | PASS |
+| Rate limit (3x 201, 4th 429, admin ok) | PASS |
+| Kill switch off/on | PASS |
+| Retry -> attempt 2 -> alive | PASS |
+| Log scan | PASS |
+
+**Open issues**: Scheduler fires ~45 s after `at()`. Live sites left running: `r-80q9rm`, `r-ccs3zj` (expire in 20 min; older failed/test sites such as `r-qm4pxy` stay in S3 until the 2-day lifecycle). The tester's IP is rate-limited until the top of the hour from the 429 test; use `localStorage["resurrect.admin"]`.
+
+**Next: merge to main at 6 PM.**

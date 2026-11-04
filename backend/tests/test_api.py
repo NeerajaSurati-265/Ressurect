@@ -259,7 +259,7 @@ def test_health_and_badge(client):
     assert client.get("/health").json() == {"ok": True, "resurrections_enabled": True}
     missing = client.get("/badge/r-nope00.svg")
     assert missing.status_code == 404 and "unknown" in missing.text
-    assert missing.headers["cache-control"] == "no-cache" and missing.headers["content-type"].startswith("image/svg+xml")
+    assert missing.headers["cache-control"] == "no-cache, max-age=0" and missing.headers["content-type"].startswith("image/svg+xml")
     store.create(make_record("alive", expires_at="2099-01-01T00:00:00Z"))
     ok = client.get("/badge/r-abc123.svg")
     assert ok.status_code == 200 and "alive" in ok.text

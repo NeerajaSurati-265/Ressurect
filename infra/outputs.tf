@@ -21,3 +21,19 @@ output "graves_distribution_id" {
 output "api_url" {
   value = trimsuffix(aws_lambda_function_url.api.function_url, "/")
 }
+
+output "table_name" {
+  value = aws_dynamodb_table.records.name
+}
+
+output "reaper_arn" {
+  value = aws_lambda_function.reaper.arn
+}
+
+output "scheduler_role_arn" {
+  value = aws_iam_role.scheduler.arn
+}
+
+output "schedule_group" {
+  value = aws_scheduler_schedule_group.resurrect.name
+}

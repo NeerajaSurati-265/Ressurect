@@ -103,14 +103,14 @@ def fetch(rec: StoredRecord, cursor: Optional[str]) -> LogsPage:
     )
 
 
-def tail(rec: StoredRecord, n: int = 80) -> List[str]:
-    """Last n visible build lines, for the error ghost."""
+def tail(rec: StoredRecord, n: int = 400) -> List[str]:
+    """Last n visible build lines. The ghost filters boilerplate and keeps its own last 80, so n is generous."""
     if not rec.log_stream:
         return []
     try:
         resp = config.client("logs").get_log_events(
             logGroupName=config.settings().log_group, logStreamName=rec.log_stream,
-            startFromHead=False, limit=200)
+            startFromHead=False, limit=max(200, n * 2))
     except Exception as exc:
         if _not_found(exc):
             return []

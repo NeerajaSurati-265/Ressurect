@@ -23,7 +23,8 @@ def _require_enabled() -> None:
                            "Resurrections are paused for now. Please try again later.")
 
 
-def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult) -> None:
+def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult,
+                   admin_header: Optional[str] = None) -> None:
     """Copy the autopsy outcome into the record and start a build unless it is blocked."""
     r = rec.res
     r.repo = result.repo
@@ -36,6 +37,7 @@ def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult) -> None
         r.phase_message = "Cannot rise yet"
         rec.build_id = None
         return
+    limits.reserve_build(admin_header)  # counts only builds that really start
     rec.build_id = builds.start(r.id, r.repo.url, r.stack, r.autopsy.app_dir, r.repo.commit_sha)
     r.status = "summoning"
     r.phase_message = "Summoning"
@@ -55,7 +57,7 @@ def create(repo_url: str, ip: Optional[str], admin_header: Optional[str]) -> Sto
         id=res_id, repo=result.repo, status="summoning", stack=result.autopsy.stack, deployable=False,
         attempt=1, phase_message="Summoning", autopsy=result.autopsy, created_at=now, server_time=now)
     rec = StoredRecord(res=res, client_ip=ip)
-    _apply_autopsy(rec, result)
+    _apply_autopsy(rec, result, admin_header)
     store.create(rec)
     return rec
 
@@ -82,7 +84,7 @@ def retry(rec_id: str, ip: Optional[str], admin_header: Optional[str]) -> Stored
     rec.pulse_started_at = None
     rec.last_probe_at = None
     rec.log_stream = None
-    _apply_autopsy(rec, result)
+    _apply_autopsy(rec, result, admin_header)
     try:
         store.save(rec)
     except store.ConflictError:

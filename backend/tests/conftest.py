@@ -57,3 +57,35 @@ def table(monkeypatch):
     t = FakeTable()
     monkeypatch.setattr(store, "_table", lambda: t)
     return t
+
+
+@pytest.fixture(autouse=True)
+def _no_real_bedrock(request, monkeypatch):
+    """Tests never call Bedrock unless they stub it themselves."""
+    from app import bedrock
+
+    def boom(*a, **k):
+        raise RuntimeError("real Bedrock client requested in a test")
+
+    monkeypatch.setattr(bedrock, "_runtime", boom)
+    if request.module.__name__ != "test_bedrock":
+        monkeypatch.setattr(bedrock, "converse_json", lambda *a, **k: None)
+
+
+class _AllowAllCounters:
+    def update_item(self, **kw):
+        return {}
+
+
+@pytest.fixture(autouse=True)
+def _no_real_aws(monkeypatch):
+    """Tests must never reach real AWS. Counters allow everything unless a test fakes them."""
+    from app import config, limits
+
+    def boom(*a, **k):
+        raise RuntimeError("real AWS client requested in a test; fake it")
+
+    monkeypatch.setattr(config, "client", boom)
+    monkeypatch.setattr(config, "resource", boom)
+    monkeypatch.setattr(limits, "_table", lambda: _AllowAllCounters())
+    monkeypatch.setattr(limits, "_admin_secret", lambda: None)

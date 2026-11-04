@@ -64,7 +64,7 @@ def _advance_build(rec: StoredRecord, now: datetime) -> bool:
     elif status in FAILED_BUILD:
         r.status = "failed"
         r.phase_message = "The séance failed"
-        r.ghost = ghost.explain(r.stack, r.autopsy, rec.package_json, logs.tail(rec, 80))
+        r.ghost = ghost.explain(r.stack, r.autopsy.findings, rec.package_json, logs.tail(rec))
         changed = True
     return changed
 
@@ -88,7 +88,7 @@ def _advance_pulse(rec: StoredRecord, api_url: str, now: datetime) -> bool:
     elif (now - started).total_seconds() >= PULSE_DEADLINE_S or pulse_state.attempts >= pulse_state.max_attempts:
         r.status = "failed"
         r.phase_message = "No pulse"
-        r.ghost = ghost.explain(r.stack, r.autopsy, rec.package_json, [], probe_results=result.details)
+        r.ghost = ghost.explain(r.stack, r.autopsy.findings, rec.package_json, [], probe_results=result.details)
     return True
 
 

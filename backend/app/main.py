@@ -132,11 +132,8 @@ def health():
 @app.get("/badge/{rec_id}.svg")
 def get_badge(rec_id: str):
     rec = store.get(rec_id)
-    alive = bool(rec and rec.res.status == "alive")
-    text = "alive" if alive else ("expired" if rec and rec.res.status == "expired" else "unknown")
-    svg = badge.render(text if rec else "unknown", alive)
-    return Response(svg, status_code=200 if rec else 404, media_type="image/svg+xml",
-                    headers={"Cache-Control": "no-cache"})
+    svg, code = badge.response_parts(rec.res.status if rec else None, rec.res.pinned if rec else False)
+    return Response(svg, status_code=code, media_type="image/svg+xml", headers=badge.NO_CACHE)
 
 
 handler = Mangum(app, lifespan="off")

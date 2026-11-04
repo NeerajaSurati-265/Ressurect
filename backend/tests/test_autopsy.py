@@ -187,7 +187,7 @@ def test_llm_extras_can_warn_but_never_block(monkeypatch):
 
     extra = Finding(id="llm-1", severity="block", title="t", detail="d")
     monkeypatch.setattr(autopsy.ghost, "autopsy_summary",
-                        lambda stack, findings, verdict: ("sum", [extra] * 5, "rules+llm"))
+                        lambda stack, findings, files: ("sum", [extra] * 5, "rules+llm"))
     a = run(["index.html"])
     assert a.verdict == "warnings" and a.source == "rules+llm"
     assert [f.severity for f in a.findings if f.id == "llm-1"] == ["warn"] * 3

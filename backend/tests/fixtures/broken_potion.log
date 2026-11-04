@@ -1,0 +1,160 @@
+[Container] 2026/11/04 08:16:52.553373 Running on CodeBuild On-demand
+[Container] 2026/11/04 08:16:52.553380 Waiting for agent ping
+[Container] 2026/11/04 08:16:52.783053 Waiting for DOWNLOAD_SOURCE
+[Container] 2026/11/04 08:16:53.168187 Phase is DOWNLOAD_SOURCE
+[Container] 2026/11/04 08:16:53.169020 CODEBUILD_SRC_DIR=/codebuild/output/src2810413247/src
+[Container] 2026/11/04 08:16:53.169132 YAML location is /codebuild/readonly/buildspec.yml
+[Container] 2026/11/04 08:16:53.169257 No commands found for phase name: install
+[Container] 2026/11/04 08:16:53.169738 Selecting shell bash as specified in buildspec.
+[Container] 2026/11/04 08:16:53.171035 Processing environment variables
+[Container] 2026/11/04 08:16:53.392599 Selecting 'nodejs' runtime version '20' based on manual selections...
+[Container] 2026/11/04 08:16:54.765606 Running command echo "Installing custom Node.js version 20 ..."
+Installing custom Node.js version 20 ...
+[Container] 2026/11/04 08:16:54.770222 Running command n --no-preserve 20 && rm -rf /tmp/*
+  installing : node-v20.20.2
+       mkdir : /usr/local/n/versions/node/20.20.2
+       fetch : https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.xz
+     copying : node/20.20.2
+   installed : v20.20.2 (with npm 10.8.2)
+[Container] 2026/11/04 08:17:16.213412 Moving to directory /codebuild/output/src2810413247/src
+[Container] 2026/11/04 08:17:16.213433 Cache is not defined in the buildspec
+[Container] 2026/11/04 08:17:16.253267 Skip cache due to: no paths specified to be cached
+[Container] 2026/11/04 08:17:16.253563 Registering with agent
+[Container] 2026/11/04 08:17:16.289969 Phases found in YAML: 2
+[Container] 2026/11/04 08:17:16.289989  BUILD: 1 commands
+[Container] 2026/11/04 08:17:16.289993  INSTALL: 0 commands
+[Container] 2026/11/04 08:17:16.290211 Phase complete: DOWNLOAD_SOURCE State: SUCCEEDED
+[Container] 2026/11/04 08:17:16.290220 Phase context status code:  Message:
+[Container] 2026/11/04 08:17:16.399113 Entering phase INSTALL
+[Container] 2026/11/04 08:17:16.470246 Phase complete: INSTALL State: SUCCEEDED
+[Container] 2026/11/04 08:17:16.470258 Phase context status code:  Message:
+[Container] 2026/11/04 08:17:16.518865 Entering phase PRE_BUILD
+[Container] 2026/11/04 08:17:16.521124 Phase complete: PRE_BUILD State: SUCCEEDED
+[Container] 2026/11/04 08:17:16.521132 Phase context status code:  Message:
+[Container] 2026/11/04 08:17:16.562443 Entering phase BUILD
+[Container] 2026/11/04 08:17:16.563245 Running command set -euo pipefail
+APP_DIR="${APP_DIR:-.}"
+git clone --depth 1 "$REPO_URL" src
+cd "src/$APP_DIR"
+case "$STACK" in
+  static)
+    aws s3 sync . "s3://$BUCKET/graves/$RES_ID/" --exclude ".git/*"
+    ;;
+  react-vite)
+    npm ci || npm install
+    npx vite build --base="/$RES_ID/" --outDir __resurrect_dist
+    aws s3 sync __resurrect_dist "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  react-cra)
+    npm ci || npm install
+    PUBLIC_URL="/$RES_ID/" CI=false npm run build
+    aws s3 sync build "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  *)
+    echo "Unknown STACK '$STACK'. Expected static, react-vite or react-cra." >&2
+    exit 1
+    ;;
+esac
+Cloning into 'src'...
+added 27 packages, and audited 28 packages in 1s
+10 packages are looking for funding
+  run `npm fund` for details
+found 0 vulnerabilities
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 20 modules transformed.
+rendering chunks...
+computing gzip size...
+__resurrect_dist/index.html                   0.49 kB │ gzip:  0.30 kB
+__resurrect_dist/assets/react-CHdo91hT.svg    4.12 kB │ gzip:  2.06 kB
+__resurrect_dist/assets/vite-BF8QNONU.svg     8.70 kB │ gzip:  1.60 kB
+__resurrect_dist/assets/hero-CLDdwZDr.png    13.05 kB
+__resurrect_dist/assets/index-DykytF2W.css    4.10 kB │ gzip:  1.47 kB
+__resurrect_dist/assets/index-FyjhqriC.js   222.49 kB │ gzip: 69.30 kB
+✗ Build failed in 126ms
+error during build:
+Build failed with 1 error:
+Error: [vite]: Rolldown failed to resolve import "react-router-dom" from "/codebuild/output/src2810413247/src/src/src/App.jsx".
+This is most likely unintended because it can break your application at runtime.
+If you do want to externalize this module explicitly add it to
+`build.rolldownOptions.external`
+    at viteLog (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34942:57)
+    at file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34979:71
+    at onwarn (file:///codebuild/output/src2810413247/src/src/node_modules/@vitejs/plugin-react/dist/index.js:40:7)
+    at file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34979:28
+    at onRollupLog (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34974:65)
+    at onLog (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34734:4)
+    at file:///codebuild/output/src2810413247/src/src/node_modules/rolldown/dist/shared/create-bundler-option-BDjYxIaE.mjs:47:26
+    at logger (file:///codebuild/output/src2810413247/src/src/node_modules/rolldown/dist/shared/create-bundler-option-BDjYxIaE.mjs:38:3)
+    at aggregateBindingErrorsIntoJsError (file:///codebuild/output/src2810413247/src/src/node_modules/rolldown/dist/shared/error-BJ9uQLIS.mjs:50:18)
+    at unwrapBindingResult (file:///codebuild/output/src2810413247/src/src/node_modules/rolldown/dist/shared/error-BJ9uQLIS.mjs:20:128)
+    at #build (file:///codebuild/output/src2810413247/src/src/node_modules/rolldown/dist/shared/rolldown-DWd2aEL4.mjs:146:34)
+    at async buildEnvironment (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:34849:66)
+    at async Object.build (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:35270:19)
+    at async Object.buildApp (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/chunks/node.js:35267:153)
+    at async CAC.<anonymous> (file:///codebuild/output/src2810413247/src/src/node_modules/vite/dist/node/cli.js:790:3) {
+  errors: [Getter/Setter]
+}
+[Container] 2026/11/04 08:17:19.385276 Command did not exit successfully set -euo pipefail
+APP_DIR="${APP_DIR:-.}"
+git clone --depth 1 "$REPO_URL" src
+cd "src/$APP_DIR"
+case "$STACK" in
+  static)
+    aws s3 sync . "s3://$BUCKET/graves/$RES_ID/" --exclude ".git/*"
+    ;;
+  react-vite)
+    npm ci || npm install
+    npx vite build --base="/$RES_ID/" --outDir __resurrect_dist
+    aws s3 sync __resurrect_dist "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  react-cra)
+    npm ci || npm install
+    PUBLIC_URL="/$RES_ID/" CI=false npm run build
+    aws s3 sync build "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  *)
+    echo "Unknown STACK '$STACK'. Expected static, react-vite or react-cra." >&2
+    exit 1
+    ;;
+esac
+ exit status 1
+[Container] 2026/11/04 08:17:19.389412 Phase complete: BUILD State: FAILED
+[Container] 2026/11/04 08:17:19.389425 Phase context status code: COMMAND_EXECUTION_ERROR Message: Error while executing command: set -euo pipefail
+APP_DIR="${APP_DIR:-.}"
+git clone --depth 1 "$REPO_URL" src
+cd "src/$APP_DIR"
+case "$STACK" in
+  static)
+    aws s3 sync . "s3://$BUCKET/graves/$RES_ID/" --exclude ".git/*"
+    ;;
+  react-vite)
+    npm ci || npm install
+    npx vite build --base="/$RES_ID/" --outDir __resurrect_dist
+    aws s3 sync __resurrect_dist "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  react-cra)
+    npm ci || npm install
+    PUBLIC_URL="/$RES_ID/" CI=false npm run build
+    aws s3 sync build "s3://$BUCKET/graves/$RES_ID/"
+    ;;
+  *)
+    echo "Unknown STACK '$STACK'. Expected static, react-vite or react-cra." >&2
+    exit 1
+    ;;
+esac
+. Reason: exit status 1
+[Container] 2026/11/04 08:17:19.431214 Entering phase POST_BUILD
+[Container] 2026/11/04 08:17:19.434118 Phase complete: POST_BUILD State: SUCCEEDED
+[Container] 2026/11/04 08:17:19.434128 Phase context status code:  Message:
+[Container] 2026/11/04 08:17:19.478216 Set report auto-discover timeout to 5 seconds
+[Container] 2026/11/04 08:17:19.478286 Expanding base directory path:  .
+[Container] 2026/11/04 08:17:19.479594 Assembling file list
+[Container] 2026/11/04 08:17:19.479601 Expanding .
+[Container] 2026/11/04 08:17:19.481011 Expanding file paths for base directory .
+[Container] 2026/11/04 08:17:19.481018 Assembling file list
+[Container] 2026/11/04 08:17:19.481020 Expanding **/*
+[Container] 2026/11/04 08:17:19.484518 No matching auto-discover report paths found
+[Container] 2026/11/04 08:17:19.484910 Report auto-discover file discovery took 0.006680 seconds
+[Container] 2026/11/04 08:17:19.485171 Phase complete: UPLOAD_ARTIFACTS State: SUCCEEDED
+[Container] 2026/11/04 08:17:19.485177 Phase context status code:  Message:

@@ -9,3 +9,9 @@ variable "resurrections_enabled" {
   type        = bool
   default     = true
 }
+
+variable "lifetime_minutes" {
+  description = "How long a resurrection stays alive before the reaper removes it."
+  type        = number
+  default     = 20
+}
