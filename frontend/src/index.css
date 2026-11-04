@@ -159,9 +159,24 @@
   backdrop-filter: blur(16px) saturate(115%);
 }
 @media (min-width: 640px) {
-  /* the Keeper's lantern light falls on panels from the right */
-  .mist-glass {
-    --glass-wash: radial-gradient(130% 160% at 108% 55%, rgba(255, 138, 31, 0.13), transparent 55%);
+  /* The Keeper's lantern light falls on nearby panels and follows it (viewport-fixed layer;
+     --keeper-lx/ly/light are written by the Keeper, 0 light when it is absent). */
+  .mist-glass,
+  .parchment-glass,
+  .seance-glass,
+  .risen-glass,
+  .ghost-glass {
+    background:
+      radial-gradient(
+          420px 360px at var(--keeper-lx, 85vw) var(--keeper-ly, 60vh),
+          rgba(255, 138, 31, calc(0.12 * var(--keeper-light, 0))),
+          rgba(255, 138, 31, calc(0.04 * var(--keeper-light, 0))) 45%,
+          transparent 72%
+        )
+        fixed,
+      var(--glass-wash),
+      linear-gradient(to bottom, rgba(233, 236, 245, 0.05), transparent 42%),
+      color-mix(in srgb, var(--glass-tint) var(--glass-alpha), transparent);
   }
 }
 /* Autopsy: aged parchment. Bone text on a dark sepia ground keeps contrast above 4.5:1. */

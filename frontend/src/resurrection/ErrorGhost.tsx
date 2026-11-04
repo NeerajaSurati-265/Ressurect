@@ -35,6 +35,7 @@ export function ErrorGhost({
     <div className="flex flex-col gap-5">
       <section
         aria-labelledby="ghost-h"
+        data-keeper-anchor="ghost-card"
         className="ghost-glass card-rise rounded-2xl p-5 sm:p-7"
         style={{ '--rise-delay': '1.2s' } as CSSProperties}
       >

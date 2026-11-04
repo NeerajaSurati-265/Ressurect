@@ -23,7 +23,7 @@ export function TurnedAway({
   const showServer = error.code !== 'internal' && error.message && error.status !== 0
 
   return (
-    <section role="alert" className="mist-glass panel-enter w-full rounded-2xl p-6 text-center sm:p-8">
+    <section role="alert" data-keeper-anchor="turned-away" className="mist-glass panel-enter w-full rounded-2xl p-6 text-center sm:p-8">
       <GateIcon />
       <h2
         ref={headingRef}

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { prefersReducedMotion } from '../styles/motion'
 import { ButtonLink } from '../components/Button'
 import { COPY } from '../lib/copy'
+import { useKeeperScript } from '../keeper/store'
 
 function Lantern() {
   const still = prefersReducedMotion()
@@ -66,6 +67,7 @@ function MistyPath() {
 }
 
 export function NotFound() {
+  useKeeperScript('guiding', [{ mood: 'guiding', anchor: 'home-path', focus: 'home', whisper: 'This way home.' }])
   useEffect(() => {
     document.title = 'Lost · Resurrect'
     return () => {
@@ -74,12 +76,12 @@ export function NotFound() {
   }, [])
   return (
     <section className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 pb-[16vh] pt-16 text-center">
-      <div className="mist-glass w-full rounded-2xl px-6 py-8 sm:px-10">
+      <div data-keeper-anchor="home-path" className="mist-glass w-full rounded-2xl px-6 py-8 sm:px-10">
         <Lantern />
         <MistyPath />
         <h1 className="mt-4 font-display text-3xl font-bold text-moon sm:text-4xl">{COPY.notFound}</h1>
         <p className="mt-3 text-mist">There is nothing buried at this address. The link may be mistyped, or the page never existed.</p>
-        <div className="mt-6">
+        <div className="mt-6" data-keeper-focus="home">
           <ButtonLink to="/" variant="primary">
             Follow the lantern home
           </ButtonLink>

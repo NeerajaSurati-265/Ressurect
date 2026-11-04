@@ -5,6 +5,7 @@ import { FilmGrain } from './FilmGrain'
 import { Footer } from './Footer'
 import { ParticleLayer } from '../fx/ParticleLayer'
 import { FogWipe } from './misc/FogWipe'
+import { KeeperLayer } from '../keeper/Keeper'
 
 /** Persistent scene behind every route; page content and footer sit above it. */
 export function Layout() {
@@ -19,6 +20,8 @@ export function Layout() {
   return (
     <>
       <Scene descended={ritual} />
+      {/* the Keeper travels above the scene and content, below fog wipe, particles and grain */}
+      <KeeperLayer />
       <div className="relative z-10 flex min-h-dvh flex-col">
         <main id="main" className="flex flex-1 flex-col">
           <Outlet />

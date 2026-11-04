@@ -1,5 +1,24 @@
 # Frontend notes
 
+## The Keeper as companion (2026-11-04)
+
+- `src/keeper/`: `store.ts` (setKeeper / useKeeperScript / keeperEvent), `placement.ts` (pure solver),
+  `Keeper.tsx` (one rAF loop writing transforms; art is rendered once), `keeperSignal.ts` (moved from scene/).
+- Mounted once in `Layout` as `<KeeperLayer/>`: light layer at z-5 (under content, so glass catches it
+  through its blur), figure at z-20 (under fog wipe/particles z-30, grain z-40). Hidden under 640 px.
+- Screens mark `data-keeper-anchor` (url-input, grave, seance, result-card, ghost-card, cannot-rise,
+  turned-away, home-path) and `data-keeper-focus` (visit, home). The choreography per status lives in
+  `ResurrectionView.keeperSteps()`; Landing and NotFound set their own.
+- Placement: beside the anchor on the roomier side, scanning vertical offsets and shrinking; falls back to
+  the nearest free spot; if nothing is clear it dissolves. Obstacles = text, controls and glass panels
+  inside `#main` and `footer`. During a flight that crosses content it fades out and only its smoke shows.
+- Glass panels (>= 640 px) get a viewport-fixed warm wash at `--keeper-lx/--keeper-ly`, scaled by
+  `--keeper-light` (written ~20 fps, only when the lantern moves).
+- Pulse: `PulseCheck` computes when the pen tip crosses each R-peak (inverse of its keySpline) and fires
+  `keeperEvent('beat')`; Séance fires `'line'` with the candle flare.
+- Not checked: the 25 s idle wander (needs a clear strip below the hero; it skips itself otherwise), and
+  1024-1279 px widths where gutters are narrow (it should fall back to the aside column or dissolve).
+
 ## UI/UX upgrade summary (2026-11-04, 11:00–11:20 IST)
 
 **Status:** `npm run build` passes. Nothing is committed. Every change is inside `frontend/` and there are no new

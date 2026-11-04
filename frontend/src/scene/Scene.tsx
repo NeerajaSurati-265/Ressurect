@@ -16,7 +16,6 @@ import { Moon } from './Moon'
 import { ParallaxLayer } from './ParallaxLayer'
 import { Pumpkins } from './Pumpkins'
 import { Sky } from './Sky'
-import { TheKeeper, LanternLight } from './TheKeeper'
 import { Tombstones } from './Tombstones'
 
 /**
@@ -158,14 +157,6 @@ export function Scene({ descended = false }: { descended?: boolean }) {
         <Pumpkins mobile={mobile} />
         {!reduced && <Wisps mobile={mobile} paused={!visible} />}
       </ParallaxLayer>
-      {!mobile && (
-        <>
-          <LanternLight />
-          <ParallaxLayer depth={15}>
-            <TheKeeper />
-          </ParallaxLayer>
-        </>
-      )}
       {/* intro: fog rolls in from below */}
       <m.div
         className="absolute inset-0"

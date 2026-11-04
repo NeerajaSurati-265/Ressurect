@@ -5,6 +5,7 @@ import { useReducedMotion } from '../scene/hooks'
 import { DUR, EASE_OUT_EXPO } from '../styles/motion'
 import { Candle, Rune } from './icons'
 import { useTypewriter } from './useTypewriter'
+import { keeperEvent } from '../keeper/store'
 
 const PHASES = ['Summoning', 'Cloning', 'Installing', 'Building', 'Uploading'] as const
 
@@ -127,6 +128,7 @@ export function Seance({
     if (now - lastFlare.current >= 1000) {
       lastFlare.current = now
       setFlare((f) => f + 1)
+      keeperEvent('line')
     }
   }, [lines.length])
 
@@ -134,7 +136,7 @@ export function Seance({
   const active = status === 'summoning' || status === 'building'
 
   return (
-    <section aria-labelledby="seance-h" className="seance-glass panel-enter relative overflow-hidden rounded-2xl p-5 sm:p-6">
+    <section aria-labelledby="seance-h" data-keeper-anchor="seance" className="seance-glass panel-enter relative overflow-hidden rounded-2xl p-5 sm:p-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(255,138,31,0.14),transparent)]" />
       <div className="relative flex items-end justify-between gap-4">
         <Candle className="h-16 w-7 shrink-0 sm:h-20 sm:w-9" flare={flare} />

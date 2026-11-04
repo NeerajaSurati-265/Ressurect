@@ -149,7 +149,7 @@ export function Grave({ name, owner, mode }: { name: string; owner: string; mode
   }, [open, reduce, stone])
 
   return (
-    <m.div ref={wrapRef} animate={shake} className={`relative mx-auto w-full max-w-[300px] ${mode === 'haunted' ? 'pt-[38%]' : ''}`}>
+    <m.div ref={wrapRef} animate={shake} data-keeper-anchor="grave" className={`relative mx-auto w-full max-w-[300px] ${mode === 'haunted' ? 'pt-[38%]' : ''}`}>
       {mode === 'haunted' && <Ghost />}
       <svg viewBox="0 0 240 260" className="relative z-10 block w-full overflow-visible" aria-hidden="true">
         <defs>

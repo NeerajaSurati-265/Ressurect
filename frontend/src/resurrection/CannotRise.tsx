@@ -19,7 +19,7 @@ export function CannotRise({
     .sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'block' ? -1 : 1))
 
   return (
-    <section aria-labelledby="cannot-h" className="mist-glass panel-enter rounded-2xl p-5 sm:p-7">
+    <section aria-labelledby="cannot-h" data-keeper-anchor="cannot-rise" className="mist-glass panel-enter rounded-2xl p-5 sm:p-7">
       <HeavyStone />
       <h2 id="cannot-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">
         {COPY.cannotRiseHeadline}

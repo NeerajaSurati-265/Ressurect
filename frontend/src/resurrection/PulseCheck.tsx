@@ -1,9 +1,49 @@
 import type { LogLine, Pulse } from '@contracts/types'
 import { m, useReducedMotion } from 'framer-motion'
-import type { Ref } from 'react'
+import { useEffect, type Ref } from 'react'
+import { keeperEvent } from '../keeper/store'
 
 const BEAT =
   'M0 40H70L80 40L88 18L98 62L108 8L118 52L124 40H200L210 40L218 18L228 62L238 8L248 52L254 40H330L340 40L348 18L358 62L368 8L378 52L384 40H460'
+
+/** Sweep timing shared by the stroke and the pen tip: 2.2 s cycle, eased travel over the first 70 %. */
+const CYCLE_MS = 2200
+/** Where the three R-peaks sit along BEAT, as fractions of its length. */
+const PEAKS = [0.2327, 0.5394, 0.846]
+
+/** Inverse of the pen's keySpline (0.42 0 0.58 1): when, in the cycle, the tip reaches each peak. */
+function peakTimes() {
+  const bez = (p1: number, p2: number, u: number) => 3 * (1 - u) * (1 - u) * u * p1 + 3 * (1 - u) * u * u * p2 + u * u * u
+  return PEAKS.map((f) => {
+    let lo = 0
+    let hi = 1
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2
+      if (bez(0, 1, mid) < f) lo = mid
+      else hi = mid
+    }
+    return bez(0.42, 0.58, lo) * 0.7 * CYCLE_MS
+  })
+}
+
+/** Tells the Keeper each time the pen passes a heartbeat spike, so its flame pulses in time. */
+function useHeartbeatCue(active: boolean) {
+  useEffect(() => {
+    if (!active) return
+    const times = peakTimes()
+    const start = performance.now()
+    let lastPhase = 0
+    const id = window.setInterval(() => {
+      const phase = (performance.now() - start) % CYCLE_MS
+      for (const t of times) {
+        const crossed = lastPhase <= phase ? lastPhase < t && t <= phase : t > lastPhase || t <= phase
+        if (crossed) keeperEvent('beat')
+      }
+      lastPhase = phase
+    }, 30)
+    return () => window.clearInterval(id)
+  }, [active])
+}
 
 /** "Checking for a pulse… attempt N of M" with a heartbeat line sweeping across. */
 export function PulseCheck({
@@ -18,6 +58,7 @@ export function PulseCheck({
   const attempts = pulse?.attempts ?? 1
   const max = pulse?.max_attempts ?? 20
   const reduced = useReducedMotion()
+  useHeartbeatCue(!reduced)
   return (
     <section aria-labelledby="pulse-h" className="mist-glass panel-enter rounded-2xl p-5 sm:p-6">
       <h2 id="pulse-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">

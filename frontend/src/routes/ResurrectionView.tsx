@@ -9,6 +9,7 @@ import { isActive, useResurrection } from '../hooks/useResurrection'
 import { STATUS_ANNOUNCEMENT } from '../lib/copy'
 import { markLost, rememberResurrection } from '../lib/graveyard'
 import { msUntil } from '../lib/time'
+import { useKeeperScript, type KeeperStep } from '../keeper/store'
 import { AutopsyReport } from '../resurrection/AutopsyReport'
 import { CannotRise } from '../resurrection/CannotRise'
 import { ErrorGhost } from '../resurrection/ErrorGhost'
@@ -22,6 +23,35 @@ export function ResurrectionView() {
   const { id = '' } = useParams()
   // Keyed by id so every local flag resets when navigating to a new resurrection.
   return <ResurrectionScreen key={id} id={id} />
+}
+
+/** How long the Keeper holds its lantern up while the stone rises out of the earth. */
+const RISE_MS = 2600
+
+/** What the Keeper does for each status. The Keeper only ever sees these directives. */
+function keeperSteps(status: ResurrectionStatus): KeeperStep[] {
+  switch (status) {
+    case 'summoning':
+    case 'building':
+      return [{ mood: 'seance', anchor: 'seance', whisper: 'Listening to the build…' }]
+    case 'checking_pulse':
+      return [{ mood: 'listening', anchor: 'grave', whisper: 'Listening for a heartbeat…' }]
+    case 'alive':
+      // step back in triumph while the stone splits, then present the live link
+      return [
+        { mood: 'triumph', anchor: 'grave', hold: 2600 },
+        { mood: 'presenting', anchor: 'result-card', focus: 'visit', whisper: 'Your app is live.' },
+      ]
+    case 'failed':
+      return [
+        { mood: 'recoil', anchor: 'grave', hold: 1500 },
+        { mood: 'vigil', anchor: 'ghost-card', whisper: 'The cause and the fix are here.' },
+      ]
+    case 'cannot_rise':
+      return [{ mood: 'mourning', anchor: 'cannot-rise', whisper: 'Not this one. Not yet.' }]
+    case 'expired':
+      return [{ mood: 'mourning', anchor: 'grave', whisper: 'Laid to rest.' }]
+  }
 }
 
 const GRAVE_MODE: Record<ResurrectionStatus, GraveMode> = {
@@ -52,6 +82,34 @@ function ResurrectionScreen({ id }: { id: string }) {
     : null
 
   if (status === 'alive' && !sawAlive) setSawAlive(true)
+
+  // The Keeper: lantern raised while the stone rises, then one choreography per status.
+  const [rising, setRising] = useState(true)
+  const loaded = !!data
+  useEffect(() => {
+    if (!loaded) return
+    const t = window.setTimeout(() => setRising(false), RISE_MS)
+    return () => window.clearTimeout(t)
+  }, [loaded])
+  const keeperGroup = !data
+    ? error
+      ? 'barred'
+      : null
+    : rising
+      ? 'rising'
+      : status === 'summoning' || status === 'building'
+        ? 'seance'
+        : status
+  useKeeperScript(
+    keeperGroup,
+    keeperGroup === 'barred'
+      ? [{ mood: 'barred', anchor: 'turned-away', whisper: 'The gate is shut.' }]
+      : keeperGroup === 'rising'
+        ? [{ mood: 'rising', anchor: 'grave', whisper: 'The stone answers.' }]
+        : status
+          ? keeperSteps(status)
+          : [],
+  )
 
   useEffect(() => {
     if (data) rememberResurrection(status === 'expired' ? { ...data, status: 'expired' } : data)

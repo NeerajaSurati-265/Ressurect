@@ -28,6 +28,7 @@ export function Risen({
     <section
       style={dimmed ? undefined : ({ '--rise-delay': '1.8s' } as CSSProperties)}
       aria-labelledby="risen-h"
+      data-keeper-anchor={dimmed ? undefined : 'result-card'}
       inert={dimmed}
       className={`risen-glass rounded-2xl p-5 sm:p-7 ${dimmed ? 'pointer-events-none opacity-40 grayscale transition-[opacity,filter] duration-1000' : 'card-rise'}`}
     >
@@ -45,11 +46,13 @@ export function Risen({
 
       <div className="mt-7 flex justify-center">
         {url ? (
+          <span data-keeper-focus="visit" className="inline-flex">
           <ExternalButton href={url} variant="spectral" className="px-8 py-4 text-lg">
             Visit the risen app
             <span aria-hidden="true">↗</span>
             <span className="sr-only">(opens in a new tab)</span>
           </ExternalButton>
+          </span>
         ) : (
           <p className="text-mist">The live link is on its way…</p>
         )}

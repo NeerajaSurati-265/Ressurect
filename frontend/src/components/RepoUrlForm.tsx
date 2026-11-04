@@ -1,7 +1,7 @@
 import type { CreateResurrectionRequest } from '@contracts/types'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { emitFrom } from '../fx/particles'
-import { keeperSignal } from '../scene/keeperSignal'
+import { keeperSignal } from '../keeper/keeperSignal'
 import { buttonClass } from './Button'
 import { INVALID_URL_COPY, parseRepoUrl } from '../lib/repoUrl'
 
@@ -34,7 +34,7 @@ export function RepoUrlForm({
   }
 
   return (
-    <form noValidate onSubmit={handleSubmit} className="mist-glass w-full rounded-2xl p-3 text-left sm:p-4">
+    <form noValidate onSubmit={handleSubmit} data-keeper-anchor="url-input" className="mist-glass w-full rounded-2xl p-3 text-left sm:p-4">
       <label htmlFor={inputId} className="sr-only">
         Public GitHub repository URL
       </label>

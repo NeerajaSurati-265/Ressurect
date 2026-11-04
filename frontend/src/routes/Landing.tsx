@@ -5,11 +5,18 @@ import { Hero } from '../components/Hero'
 import { TurnedAway } from '../components/TurnedAway'
 import { useStartRitual } from '../hooks/useStartRitual'
 import { useGraveyard } from '../lib/graveyard'
+import { useKeeperScript } from '../keeper/store'
 
 export function Landing() {
   const { start, busy, error, reset } = useStartRitual()
   const handleSubmit = (req: CreateResurrectionRequest) => start(req.repo_url)
   const graves = useGraveyard()
+  useKeeperScript(
+    error ? 'barred' : 'idle',
+    error
+      ? [{ mood: 'barred', anchor: 'turned-away', whisper: 'The gate is shut.' }]
+      : [{ mood: 'idle', anchor: 'url-input' }],
+  )
   const below =
     graves.length > 0 && !error ? (
       <a
