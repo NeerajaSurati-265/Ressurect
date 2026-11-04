@@ -1,0 +1,284 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+@theme inline {
+  --color-night-950: var(--night-950);
+  --color-night-900: var(--night-900);
+  --color-night-800: var(--night-800);
+  --color-mist: var(--mist);
+  --color-moon: var(--moon);
+  --color-ember-500: var(--ember-500);
+  --color-ember-300: var(--ember-300);
+  --color-spectral: var(--spectral);
+  --color-blood: var(--blood);
+  --color-bone: var(--bone);
+  --color-parchment: var(--parchment);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-type: var(--font-type);
+}
+
+@layer base {
+  html {
+    background: var(--night-950);
+    color: var(--moon);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: transparent;
+    overflow-x: hidden;
+    margin: 0;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ember-500);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--ember-500) 40%, transparent);
+  }
+}
+
+/* ---------- keyframes ---------- */
+@keyframes wordmark-flicker {
+  0%, 100% { opacity: 1; }
+  41% { opacity: 1; }
+  42% { opacity: 0.86; }
+  43% { opacity: 1; }
+  76% { opacity: 1; }
+  77% { opacity: 0.9; }
+  78.5% { opacity: 0.97; }
+  80% { opacity: 1; }
+}
+@keyframes ember-flicker {
+  0%, 100% { opacity: 0.95; }
+  12% { opacity: 0.7; }
+  20% { opacity: 1; }
+  37% { opacity: 0.8; }
+  52% { opacity: 0.98; }
+  64% { opacity: 0.72; }
+  81% { opacity: 0.92; }
+}
+@keyframes flame-sway {
+  0%, 100% { transform: scale(1, 1) skewX(0deg); }
+  30% { transform: scale(0.94, 1.06) skewX(-3deg); }
+  60% { transform: scale(1.04, 0.95) skewX(2deg); }
+}
+@keyframes cloud-drift {
+  from { transform: translateX(-24vw); }
+  to { transform: translateX(24vw); }
+}
+@keyframes bat-flap {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(-0.55); }
+}
+
+/* Carved, lantern-lit stone: a warm face gradient, a bright upper lip where light catches
+   the cut, stacked dark bevels below, then a soft cast shadow and a faint ember bloom. */
+.wordmark {
+  font-family: var(--font-display);
+  color: var(--ember-300);
+  background: linear-gradient(180deg, #ffe2b8 0%, #ffb35c 34%, #f08a2a 58%, #b9590e 82%, #8a3f08 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 236, 205, 0.55))
+    drop-shadow(0 1px 0 #6e3306)
+    drop-shadow(0 2px 0 #4f2404)
+    drop-shadow(0 3px 0 #331702)
+    drop-shadow(0 8px 10px rgba(0, 0, 0, 0.65))
+    drop-shadow(0 0 22px rgba(255, 138, 31, 0.32));
+  animation: wordmark-flicker 7s infinite;
+}
+.anim-ember { animation: ember-flicker 2.3s infinite; }
+.anim-ember-slow { animation: ember-flicker 3.7s infinite; }
+.anim-flame { animation: flame-sway 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.anim-cloud { animation: cloud-drift linear infinite alternate; }
+.anim-flap { animation: bat-flap 0.28s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- scene ---------- */
+.parallax-layer {
+  position: absolute;
+  inset: -24px;
+  transform: translate3d(
+    calc(var(--px, 0) * var(--d, 0) * -1px),
+    calc(var(--py, 0) * var(--d, 0) * -0.5px),
+    0
+  );
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.ground-box {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: clamp(260px, 55vh, 34vw);
+}
+@media (max-width: 639.98px) {
+  .ground-box { height: 46vh; }
+}
+@keyframes lantern-sway {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+.anim-sway { animation: lantern-sway 5.5s ease-in-out infinite; transform-box: view-box; }
+
+/* ---------- mist glass: one panel language for hero, autopsy, séance and results ---------- */
+.mist-glass,
+.parchment-glass,
+.seance-glass,
+.risen-glass,
+.ghost-glass {
+  --glass-tint: var(--night-900);
+  --glass-alpha: 60%;
+  --glass-edge: color-mix(in srgb, var(--moon) 14%, transparent);
+  --glass-wash: linear-gradient(transparent, transparent);
+  background:
+    var(--glass-wash),
+    linear-gradient(to bottom, rgba(233, 236, 245, 0.05), transparent 42%),
+    color-mix(in srgb, var(--glass-tint) var(--glass-alpha), transparent);
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(233, 236, 245, 0.09),
+    0 24px 60px -16px rgba(0, 0, 0, 0.7);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+  backdrop-filter: blur(16px) saturate(115%);
+}
+@media (min-width: 640px) {
+  /* the Keeper's lantern light falls on panels from the right */
+  .mist-glass {
+    --glass-wash: radial-gradient(130% 160% at 108% 55%, rgba(255, 138, 31, 0.13), transparent 55%);
+  }
+}
+/* Autopsy: aged parchment. Bone text on a dark sepia ground keeps contrast above 4.5:1. */
+.parchment-glass {
+  --glass-tint: #1d1810;
+  --glass-alpha: 84%;
+  --glass-edge: color-mix(in srgb, var(--parchment) 34%, transparent);
+  --glass-wash:
+    radial-gradient(120% 90% at 0% 0%, rgba(217, 201, 163, 0.17), transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, rgba(120, 84, 40, 0.24), transparent 65%);
+  box-shadow:
+    inset 0 0 42px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(232, 225, 208, 0.13),
+    0 24px 60px -16px rgba(0, 0, 0, 0.7);
+}
+.seance-glass {
+  --glass-alpha: 84%;
+  --glass-edge: color-mix(in srgb, var(--ember-500) 24%, transparent);
+  --glass-wash: radial-gradient(70% 50% at 50% 0%, rgba(255, 138, 31, 0.1), transparent 70%);
+}
+.risen-glass {
+  --glass-alpha: 72%;
+  --glass-edge: color-mix(in srgb, var(--spectral) 36%, transparent);
+  --glass-wash: radial-gradient(90% 60% at 50% 0%, rgba(125, 226, 209, 0.15), transparent 70%);
+}
+.ghost-glass {
+  --glass-alpha: 76%;
+  --glass-edge: color-mix(in srgb, var(--ember-500) 28%, transparent);
+  --glass-wash: radial-gradient(80% 60% at 100% 0%, rgba(255, 138, 31, 0.12), transparent 70%);
+}
+
+/* ---------- film grain ---------- */
+.film-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.07;
+}
+.film-grain-tile {
+  position: absolute;
+  inset: -160px;
+  background-size: 160px 160px;
+  will-change: transform;
+  animation: grain 0.9s steps(5) infinite;
+}
+@keyframes grain {
+  0% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-37px, 21px, 0); }
+  40% { transform: translate3d(53px, -44px, 0); }
+  60% { transform: translate3d(-18px, 61px, 0); }
+  80% { transform: translate3d(71px, 9px, 0); }
+  100% { transform: translate3d(-52px, -27px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .film-grain { display: none; }
+}
+
+/* ---------- resurrection flow ---------- */
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.panel-enter { animation: panel-enter 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+.risen-title {
+  text-shadow: 0 0 18px rgba(125, 226, 209, 0.55), 0 0 48px rgba(125, 226, 209, 0.25);
+}
+
+@keyframes caret-blink { 50% { opacity: 0; } }
+.seance-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: -0.12em;
+  background: var(--ember-300);
+  animation: caret-blink 0.9s steps(1) infinite;
+}
+
+@keyframes phase-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 138, 31, 0); }
+  50% { box-shadow: 0 0 16px rgba(255, 138, 31, 0.45); }
+}
+.phase-current { animation: phase-glow 1.8s ease-in-out infinite; }
+
+@keyframes heartbeat-sweep {
+  0% { stroke-dasharray: 0 100; stroke-dashoffset: 0; opacity: 1; }
+  70% { stroke-dasharray: 100 0; stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dasharray: 100 0; stroke-dashoffset: 0; opacity: 0; }
+}
+.heartbeat-sweep { animation: heartbeat-sweep 2.2s ease-in-out infinite; }
+
+.countdown-digits {
+  text-shadow: 0 0 14px rgba(255, 138, 31, 0.55), 0 0 38px rgba(255, 138, 31, 0.28);
+}
+@keyframes countdown-pulse {
+  0%, 100% { transform: scale(1); text-shadow: 0 0 12px rgba(229, 72, 77, 0.5); }
+  50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(229, 72, 77, 0.9); }
+}
+.countdown-urgent { animation: countdown-pulse 1s ease-in-out infinite; }
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+.anim-bob { animation: bob 4.2s ease-in-out infinite; }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.anim-pulse-soft { animation: pulse-soft 3s ease-in-out infinite; }
+
+@keyframes wisp {
+  0% { transform: translateY(4px); opacity: 0; }
+  30% { opacity: 0.95; }
+  100% { transform: translateY(-14px); opacity: 0; }
+}
+.anim-wisp { animation: wisp 2.6s ease-out infinite; transform-box: fill-box; }

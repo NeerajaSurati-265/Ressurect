@@ -1,0 +1,18 @@
+/* Resurrect design tokens. Values come from frontend/DESIGN.md (Colour tokens, Type). */
+:root {
+  --night-950: #07080f;
+  --night-900: #0d1020;
+  --night-800: #161a33;
+  --mist: #8fa3c7;
+  --moon: #e9ecf5;
+  --ember-500: #ff8a1f;
+  --ember-300: #ffb35c;
+  --spectral: #7de2d1;
+  --blood: #e5484d;
+  --bone: #e8e1d0;
+  --parchment: #d9c9a3;
+
+  --font-display: "Cinzel", "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-type: "Special Elite", "Courier New", monospace;
+}

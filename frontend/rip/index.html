@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#07080F">
+<title>Rest in peace · Resurrect</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2307080F'/%3E%3Cpath d='M9 28V14a7 7 0 0 1 14 0v14z' fill='%23363d5e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@400;600&display=swap">
+<style>
+:root{--night-950:#07080f;--night-900:#0d1020;--night-800:#161a33;--mist:#8fa3c7;--moon:#e9ecf5;--ember-500:#ff8a1f;--ember-300:#ffb35c;--moss:#6b8455}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--night-950);color:var(--moon);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px 32px;overflow-x:hidden;
+background:radial-gradient(ellipse 80% 60% at 50% 110%,rgba(143,163,199,.12),transparent 70%),linear-gradient(to bottom,var(--night-950),#0a0c1a 50%,var(--night-800))}
+main{width:100%;max-width:520px;text-align:center;position:relative;z-index:1}
+.scene{width:100%;max-width:440px;margin:0 auto;display:block}
+h1{font-family:Cinzel,"Times New Roman",serif;font-weight:700;font-size:clamp(1.6rem,6vw,2.3rem);line-height:1.2;margin:8px 0 10px;
+text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 24px rgba(255,138,31,.25)}
+p{color:var(--mist);margin:0 auto;max-width:420px;line-height:1.55}
+.btn{display:inline-block;margin-top:26px;padding:14px 28px;border-radius:12px;background:var(--ember-500);color:var(--night-950);
+font-weight:600;text-decoration:none;box-shadow:0 0 26px rgba(255,138,31,.38);transition:background-color .2s}
+.btn:hover{background:var(--ember-300)}
+.btn:focus-visible{outline:2px solid var(--ember-300);outline-offset:4px}
+.small{margin-top:18px;font-size:.8rem;color:rgba(143,163,199,.75)}
+.ember{animation:ember 2.6s infinite}
+.fog{animation:fog 18s ease-in-out infinite alternate}
+.twinkle{animation:tw 3.4s ease-in-out infinite}
+@keyframes ember{0%,100%{opacity:.95}20%{opacity:.7}45%{opacity:1}70%{opacity:.78}}
+@keyframes fog{from{transform:translateX(-18px)}to{transform:translateX(18px)}}
+@keyframes tw{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<svg class="scene" viewBox="0 0 440 300" role="img" aria-label="A closed tombstone under the moon">
+<defs>
+<radialGradient id="halo"><stop offset="0" stop-color="#e9ecf5" stop-opacity=".4"/><stop offset=".35" stop-color="#c9d4ec" stop-opacity=".12"/><stop offset="1" stop-color="#8fa3c7" stop-opacity="0"/></radialGradient>
+<radialGradient id="disc" cx="40%" cy="38%" r="70%"><stop offset="0" stop-color="#fbfcff"/><stop offset=".65" stop-color="#e9ecf5"/><stop offset="1" stop-color="#c3cbe0"/></radialGradient>
+<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a6488"/><stop offset=".45" stop-color="#363d5e"/><stop offset="1" stop-color="#191c31"/></linearGradient>
+<radialGradient id="glow"><stop offset="0" stop-color="#ff8a1f" stop-opacity=".5"/><stop offset=".5" stop-color="#ff8a1f" stop-opacity=".12"/><stop offset="1" stop-color="#ff8a1f" stop-opacity="0"/></radialGradient>
+<radialGradient id="fogg"><stop offset="0" stop-color="#8fa3c7" stop-opacity=".28"/><stop offset="1" stop-color="#8fa3c7" stop-opacity="0"/></radialGradient>
+</defs>
+<g fill="#e9ecf5">
+<circle class="twinkle" cx="40" cy="30" r="1.2"/><circle cx="120" cy="18" r=".9" opacity=".7"/><circle class="twinkle" cx="210" cy="44" r="1" style="animation-delay:-1.2s"/>
+<circle cx="300" cy="22" r=".8" opacity=".6"/><circle class="twinkle" cx="400" cy="60" r="1.1" style="animation-delay:-2s"/><circle cx="20" cy="110" r=".8" opacity=".5"/><circle cx="250" cy="96" r=".7" opacity=".5"/>
+</g>
+<circle cx="340" cy="70" r="80" fill="url(#halo)"/>
+<circle cx="340" cy="70" r="26" fill="url(#disc)"/>
+<g fill="#b8c1d8" opacity=".45"><circle cx="332" cy="64" r="5"/><circle cx="349" cy="76" r="3.4"/><circle cx="338" cy="83" r="2.4"/></g>
+<path d="M280 78c4-8 16-9 21-3 6-9 22-8 25 1 9-3 19 2 18 9h-70c-3-3 1-7 6-7z" fill="#161a33" opacity=".85"/>
+<path d="M0 212C70 190 130 204 200 196S330 180 440 200V300H0Z" fill="#11142b"/>
+<g stroke="#05060d" stroke-linecap="round" fill="none">
+<path d="M58 214Q54 170 62 138" stroke-width="6"/><path d="M60 160Q44 140 30 132M61 148Q76 128 92 122M42 138Q36 124 38 112M80 126Q86 112 98 108" stroke-width="2.4"/>
+<path d="M392 210Q396 176 388 150" stroke-width="5"/><path d="M390 168Q408 150 420 146M389 158Q376 140 366 134" stroke-width="2.2"/>
+</g>
+<g fill="#04050b"><path d="M0 238H440V242H0zM0 210H440V213H0z"/>
+<path d="M14 240V200M36 240V200M58 240V200M80 240V200M102 240V200M124 240V200M316 240V200M338 240V200M360 240V200M382 240V200M404 240V200M426 240V200" stroke="#04050b" stroke-width="3"/>
+</g>
+<path d="M0 246C110 236 330 236 440 246V300H0Z" fill="#07080f"/>
+<g transform="translate(220 250)">
+<ellipse cx="0" cy="2" rx="80" ry="9" fill="#04050a"/>
+<path d="M-56 0V-92A56 56 0 0 1 56 -92V0Z" fill="url(#stone)" stroke="#0b0d19" stroke-width="2"/>
+<path d="M-54 -14V-92A54 54 0 0 1 22 -142" fill="none" stroke="#c9d4ec" stroke-opacity=".28" stroke-width="1.4"/>
+<text x="0" y="-92" text-anchor="middle" font-family="Cinzel,serif" font-weight="700" font-size="22" letter-spacing="4" fill="#0b0d19">R.I.P.</text>
+<path d="M-30 -66H30M-24 -54H24M-28 -42H28" stroke="#0b0d19" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/>
+<g fill="#6b8455" opacity=".8"><ellipse cx="-40" cy="-3" rx="16" ry="5"/><ellipse cx="38" cy="-2" rx="18" ry="4"/><ellipse cx="-50" cy="-16" rx="5" ry="9"/></g>
+</g>
+<g transform="translate(110 262)">
+<circle cx="0" cy="-14" r="40" fill="url(#glow)" class="ember"/>
+<g fill="#8a3c0b" stroke="#2a1003"><ellipse cx="-8" cy="-12" rx="9" ry="12"/><ellipse cx="8" cy="-12" rx="9" ry="12"/><ellipse cx="0" cy="-13" rx="10" ry="13"/></g>
+<path d="M-8 -18l4 -5 2 5zM8 -18l-4 -5 -2 5zM-9 -9q9 6 18 0l-3 4h-12z" fill="#ffb35c" class="ember"/>
+<path d="M-1 -25q-1 -6 3 -8l2 2q-3 2 -2 6z" fill="#2f3a19"/>
+</g>
+<ellipse class="fog" cx="160" cy="262" rx="150" ry="18" fill="url(#fogg)"/>
+<ellipse class="fog" cx="300" cy="270" rx="160" ry="16" fill="url(#fogg)" style="animation-delay:-9s"/>
+</svg>
+<h1>Rest in peace.</h1>
+<p>This app's 20 minutes are up. Its files were deleted when its time ran out, so there is nothing left at this link.</p>
+<a class="btn" href="__RESURRECT_UI_URL__">Resurrect again</a>
+<p class="small">Resurrect brings students' GitHub repos back to life for 20 minutes at a time.</p>
+</main>
+</body>
+</html>
