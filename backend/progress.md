@@ -368,3 +368,22 @@ State at the end: flag **ON**, quota 10, 0 live `rz-*`. Waiting for the user on 
 - **Contract notes**: `Ghost.source` only allows `llm|fallback` (frozen), so rule ghosts say `llm` (the UI shows `fallback` as a generic ghost). Blocked autopsies now say `source: "rules"`, which the UI captions "rules only (the AI review was unavailable)".
 - **Not run**: `terraform plan` (it refreshes against AWS). Expected diff once run: `api` and `reaper` `source_code_hash` only (plus the known drift items); no flag change.
 - **Applied** (user OK, saved plan `-var backends_enabled=true`): plan said 3 change; result **0 added, 2 changed, 0 destroyed** (`api` and `reaper` `source_code_hash`). The `scheduler` policy was Terraform noise and did not change. Live `CodeSha256` is `nAfcirDbmmFEpxB1q6slunFjcouS9+7iDVV7NpyZe2c=`; `BACKENDS_ENABLED=true`, `MAX_LIVE_BACKENDS=2`, `/health` OK. Flag still ON, quota 10.
+
+### Re-run of the 7 failing matrix repos on the fixed code (2026-11-05, flag ON, quota 10; testing only)
+Throttles 0 before and after every run; one at a time; no `rz-*`, ECR tag or log group left afterwards.
+| Repo | Before | After | Time | New message correct? |
+|---|---|---|---|---|
+| Gabrielgsn30/fastapi_crud | failed, "add gcc to your Dockerfile" | failed, "pip could not install cffi: that pinned version has no ready-made package for Python 3.12. Upgrade cffi or remove the == pins" | 35.4 s | Yes. Log confirms cffi really failed (`'gcc'` missing); pip builds several pins in parallel so the named package varies (earlier greenlet), same fix |
+| rz-express-mongo | failed, "check MongoDB service is running" | failed ("The server crashed"): "connects to MongoDB on localhost, no database inside the deployed app. Use a hosted database such as MongoDB Atlas and read its URL from an env var, for example MONGODB_URI" | **82.5 s** (was 172.1) | Yes |
+| eeeeaa/express-api-tutorial | failed, nodemon not installed | failed ("The server crashed"): "'nodemon' command is not found... Install 'nodemon' as a dependency", command `npm install nodemon` | **67.6 s** (was 228.9) | Mostly. Cause right; the command is wrong (see next steps) |
+| atharvjain1114-avj14/Portfolio-HTML-CSS | cannot_rise, "Unrecognised project" | cannot_rise: "Found Profileproject NEW.html but no index.html... Rename your main page to index.html." | 2.3 s | Yes |
+| weijunext/nextjs-starter | cannot_rise, "only hosts static files today" | cannot_rise: "This is a Next.js app. Resurrect can host static sites, React (Vite or Create React App), FastAPI, Flask, Django and Express apps, but not Next.js yet." Fix: Vite React or `output: 'export'` | 2.8 s | Yes; no contradicting model findings |
+| iamvickyav/spring-boot-data-H2-embedded | cannot_rise, "Unrecognised project" | cannot_rise: "This looks like a Java / Spring project... not supported yet." | 2.3 s | Yes |
+| troubleshooteriitm/fastapi_crud_sqlite | cannot_rise, "Unrecognised project" | cannot_rise: "Found a FastAPI app in backend/app/main.py, but the repo has no requirements.txt... Add a requirements.txt listing fastapi and uvicorn" | 2.3 s | Yes |
+
+**Next steps (not fixed; code freeze)**
+1. nodemon ghost command: `npm install nodemon` does not fix a package that is already a devDependency (npm keeps it a devDependency and the build prunes dev deps). Better fix: change `start` to `node <file>` or `npm install --save-prod nodemon`; `ghost.ALLOWED_COMMAND` only allows `-D/--save-dev`, so either widen the allowlist or give a text-only fix for this case.
+2. The model's autopsy summary for that repo says "It should build successfully" (a non-blocked autopsy), while the app then crashes. Harmless but optimistic.
+3. Bug 6 (alive backend whose `/` is 404, e.g. express-postgres-crud-api) was not in this batch and is still open; so are the low items (Django/ORM misleading model findings).
+4. Rule ghosts must say `source: "llm"` and blocked autopsies say `source: "rules"` (frozen contract), so the UI caption "rules only (the AI review was unavailable)" appears on them; only fixable in the frontend.
+5. Failure times: Mongo is 82 s (65 s build + crash detection). A further cut would need faster builds, not logic changes.
