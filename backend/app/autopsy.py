@@ -53,6 +53,8 @@ def plan_fetch(paths: List[str], backends: bool = False) -> Tuple[str, List[str]
             break
     if _join(app_dir, "index.html") in s:
         wanted.append(_join(app_dir, "index.html"))
+    if backends and not wanted and not any(m in s for m in PYTHON_MARKERS):
+        wanted.extend(detect.python_entry_candidates(paths))  # to say "found a FastAPI app, add requirements.txt"
     for cfg in VITE_CONFIGS:
         if _join(app_dir, cfg) in s:
             wanted.append(_join(app_dir, cfg))
@@ -83,6 +85,30 @@ def _engine_requires_above_20(spec: str) -> bool:
         if lower <= 20:
             return False
     return True
+
+
+def _html_pages(paths: List[str], app_dir: str) -> List[str]:
+    """.html files directly in the app folder (there is no index.html among them when this is used)."""
+    prefix = "" if app_dir == "." else app_dir + "/"
+    return sorted(p for p in paths if p.lower().endswith(".html") and p.startswith(prefix)
+                  and "/" not in p[len(prefix):])
+
+
+UNSUPPORTED_NODE = (("next", "Next.js", "Use a Vite React app, or export your Next.js site as static files (output: 'export')."),
+                    ("@nestjs/core", "NestJS", "Rewrite the server with Express, which Resurrect can host."),
+                    ("koa", "Koa", "Rewrite the server with Express, which Resurrect can host."))
+
+
+def _unsupported_node_server(deps: dict) -> Finding:
+    """Flag on: name the framework that keeps this server app from rising, and what does rise."""
+    for dep, name, fix in UNSUPPORTED_NODE:
+        if dep in deps:
+            return _finding("stack-node-server", "block", "%s app" % name,
+                            "This is a %s app. Resurrect can host %s, but not %s yet."
+                            % (name, detect.SUPPORTED_BACKENDS, name), fix, "package.json")
+    return _finding("stack-node-server", "block", "Node server app",
+                    "This Node server could not be started. Resurrect can host %s." % detect.SUPPORTED_BACKENDS,
+                    "Add a \"start\" script such as \"node server.js\" to package.json.", "package.json")
 
 
 def analyze(paths: List[str], files: Dict[str, str],
@@ -155,10 +181,13 @@ def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool]
                                  "Python resurrection is coming next.", python_file))
     elif has_pkg and any(d in deps for d in SERVER_DEPS):
         stack = "node-other"
-        server = next(d for d in SERVER_DEPS if d in deps)
-        findings.append(_finding("stack-node-server", "block", "Node server app",
-                                 "This project needs a running server (%s). Resurrect only hosts static files today." % server,
-                                 "Server apps arrive in a later version.", "package.json"))
+        if backends:
+            findings.append(_unsupported_node_server(deps))
+        else:
+            server = next(d for d in SERVER_DEPS if d in deps)
+            findings.append(_finding("stack-node-server", "block", "Node server app",
+                                     "This project needs a running server (%s). Resurrect only hosts static files today." % server,
+                                     "Server apps arrive in a later version.", "package.json"))
     elif has_pkg and not has_build and not has_index:
         stack = "node-other"
         findings.append(_finding("no-build-script", "block", "No build script",
@@ -168,10 +197,28 @@ def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool]
         stack = "static"
         findings.append(_finding("stack-static", "ok", "Static website",
                                  "index.html is in place and nothing needs building.", None, "index.html"))
+    elif not has_pkg and _html_pages(paths, app_dir):
+        stack = "static"
+        page = _html_pages(paths, app_dir)[0]
+        findings.append(_finding("no-index-html", "block", "No index.html",
+                                 "Found %s but no index.html. Browsers open index.html first, so the site would be empty." % page,
+                                 "Rename your main page to index.html.", page))
+    elif backends and (no_req := detect.python_without_requirements(paths, files)) is not None:
+        stack = "python"
+        findings.append(no_req)
     else:
-        findings.append(_finding("stack-unknown", "block", "Unrecognised project",
-                                 "We could not tell how to build this project.",
-                                 "Static HTML and React apps can rise today."))
+        lang = detect.unsupported_language(paths)
+        supported = detect.supported_text(backends)
+        if lang:
+            findings.append(_finding("stack-unknown", "block", "%s project" % lang,
+                                     "This looks like a %s project. Resurrect can host %s; %s is not supported yet."
+                                     % (lang, supported, lang),
+                                     "Rebuild it as one of: %s." % supported))
+        else:
+            findings.append(_finding("stack-unknown", "block", "Unrecognised project",
+                                     "We could not tell how to build this project.",
+                                     "Static HTML and React apps can rise today." if not backends else
+                                     "Resurrect can host %s." % supported))
 
     # Warnings
     if has_pkg:
@@ -203,6 +250,10 @@ def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool]
 def _finish(stack: str, app_dir: str, findings: List[Finding], files: Optional[Dict[str, str]] = None) -> Autopsy:
     verdict = ("blocked" if any(f.severity == "block" for f in findings)
                else "warnings" if any(f.severity == "warn" for f in findings) else "healthy")
+    if verdict == "blocked":
+        # The rules already said no. A model summary ("it should build") or extra warnings would only contradict that.
+        return Autopsy(verdict=verdict, stack=stack, app_dir=app_dir, summary=ghost._rules_summary(stack, findings),
+                       findings=findings, source="rules")
     summary, extras, source = ghost.autopsy_summary(stack, findings, files or {})
     # The LLM may only add warnings; it can never add blocks or change the verdict.
     extra_warnings = [f.model_copy(update={"severity": "warn"}) for f in extras][:MAX_EXTRA_WARNINGS]

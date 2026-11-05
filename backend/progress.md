@@ -284,3 +284,87 @@ Plan: 10 to add, 3 to change, 0 to destroy; `fmt` and `validate` pass.
 - Account concurrency is 10 until the quota increase lands: keep `BACKENDS_ENABLED=false` for the demo unless it is above 100.
 
 **Next**: Phase 5 (live verification) needs the merge and "go". Remaining local-only work: none planned; I can write the five test repos in `~/resurrect-test-repos/` now if you want them ready.
+
+### Preflight and flag-off checks (2026-11-05, `BACKENDS_ENABLED=false`, nothing applied)
+**Preflight**
+- Lambda concurrency quota (`L-B99A9384`): **10**. Increase to **1000 filed 2026-11-05 08:49 IST, status PENDING**. Flag stays off until it is approved and the quota is above 100.
+- `scripts/package_backend.sh` + `terraform plan` (not applied): **0 add, 5 change, 0 destroy**, not the expected "no changes".
+  - `aws_lambda_function.api` and `.reaper`: `source_code_hash` only. The live `app/` is **byte-identical** to `backend/app` (`diff -rq`, exit 0, checked twice), so this is zip/wheel non-reproducibility, not a code change. It includes the `requestContext.http.sourceIp` fix (`main.py:59`) and the ghost command allowlist (`ghost.py`).
+  - `aws_codebuild_project.build_apps`: buildspec differs by `docker build --progress=plain` (repo has it, live project does not).
+  - `aws_iam_role_policy.api_apps` and `.scheduler`: policy shown as "known after apply" (deferred; content not proven different).
+- pytest: **290 passed**.
+- Failed backend reads the last 50 lines of `/aws/lambda/rz-<id>` before cleanup: `statemachine.py:82` (`app_logs`) precedes `statemachine.py:87` (`cleanup`); test `test_backends.py::test_failed_backend_reads_last_50_log_lines_before_deleting_the_log_group`.
+
+**Test repos** (public, `NeerajaSurati-265`): haunted-portfolio, rz-fastapi-sqlite, rz-flask, rz-django, rz-express (listen 5000 + `postinstall` creds probe), rz-express-mongo.
+
+**Flag-off live checks (admin header, token read from SSM, not printed)**
+| Repo | id | Result |
+|---|---|---|
+| haunted-portfolio | r-nj7jyf | `alive` at **56.1 s** from POST (client clock; under 60 s but thin margin). Index 200, `style.css` 200 `text/css`. Stack `static`. |
+| todo-of-the-dead | r-p0gven | `alive` at **50.3 s**. Stack `react-vite`. `assets/index-FHbrDV5y.js` 200 `text/javascript`, CSS 200. |
+| rz-fastapi-sqlite | r-9o92a7 | `cannot_rise` at once (3.5 s), stack `python`, finding `stack-python`. CodeBuild: `resurrect-build` 18 before/after, `resurrect-build-apps` 0 before/after, **no build started**. |
+- Nothing pinned. The two live sites expire after 20 minutes.
+- Waiting for the user before Step 5 (flag on).
+
+### Step 5 — flag ON, live checks and test matrix (2026-11-05; `BACKENDS_ENABLED=true`, `MAX_LIVE_BACKENDS=2`, quota 10)
+Applied the saved flag-on plan (0 add, 5 change, 0 destroy; flag + known drift). Admin header on every POST. Lambda `Throttles` (account-wide and `resurrect-api`, 1-minute periods) was **0 after every run and over the whole session**. Never more than 2 `rz-*` alive; each alive backend was reaped through the real `resurrect-reaper` before the next test. Quota request status is `CASE_OPENED` (value still 10). **Nothing was fixed; the flag is still ON.**
+
+**Part 1 checks**
+| Check | Result |
+|---|---|
+| rz-fastapi-sqlite | alive 74.7 s; `/docs`, `/health`, `/openapi.json` 200; POST+GET `/notes` OK on read-only FS |
+| rz-flask | alive 64.5 s, `/` 200 (served by an older `app/` package in the repo, see note) |
+| rz-express | alive 69.2 s. **Build log shows `CREDS_BLOCKED` inside `docker build`: the iptables DROP rules work in the real CodeBuild project** |
+| live cap | with 2 alive, rz-django -> `cannot_rise` in 3.5 s, finding `too-many-backends`, `resurrect-build-apps` count unchanged |
+| rz-django (alone) | alive 68.1 s; `/` 200, `/admin/login/` 200 (no DisallowedHost) |
+| rz-express-mongo | failed after **172.1 s**; ghost names the refused connection to 127.0.0.1:27017; function, image tag, log group all gone |
+| static regression, flag on | haunted-portfolio alive 54.4 s, style.css 200; todo-of-the-dead alive 58.7 s, JS/CSS/favicon 200; no Lambda/ECR created |
+| cleanup audit | 0 `rz-*` functions, 0 ECR tags, 0 `/aws/lambda/rz-` log groups. 7 `reap-*` schedules remain (static sites expiring, plus 2 already-reaped backends that will fire as no-ops) |
+
+**Matrix** (expected / actual)
+| Repo | Category | Expected | Actual | Time | Result | Notes |
+|---|---|---|---|---|---|---|
+| NeerajaSurati-265/haunted-portfolio | static | alive | alive | 54.4 s | PASS | style.css 200 |
+| transfershadiii/portfolio | static | alive | alive | 53.6 s | PASS | index, about, contact, media/images.png, style.css all 200 |
+| atharvjain1114-avj14/Portfolio-HTML-CSS | static | alive | cannot_rise (`stack-unknown`) | 3.0 s | **BUG** | Only page is `Profileproject NEW.html`, no `index.html`. Message is "Unrecognised project. Static HTML and React apps can rise today." Never says "rename it to index.html" |
+| NeerajaSurati-265/todo-of-the-dead | react (Vite) | alive | alive | 58.7 s | PASS | JS/CSS/favicon 200 |
+| aman-verma/viteReactTodo | react (Vite) | alive | alive | 68.4 s | PASS | assets 200 |
+| tanish-1/ViteReactTodoList | react (Vite+Tailwind) | alive | alive | 61.0 s | PASS | assets 200 |
+| NeerajaSurati-265/broken-potion | broken | failed | not tested | - | N/A | already fixed (lists react-router-dom) |
+| NeerajaSurati-265/broken-potion-2 | broken | failed + useful ghost | failed | 38.2 s | PASS | Ghost names `react-router-dom` and gives `npm install react-router-dom` |
+| NeerajaSurati-265/rz-flask | backend | alive | alive | 64.5 s | PASS | |
+| NeerajaSurati-265/rz-express | backend | alive | alive | 69.2 s | PASS | CREDS_BLOCKED |
+| troubleshooteriitm/fastapi_crud_sqlite | backend | alive or clear block | cannot_rise (`stack-unknown`) | 3.0 s | **BUG** | App is `backend/app/main.py` but the repo has no requirements.txt/pyproject. Message is the generic "Unrecognised project"; should say "FastAPI app found, add requirements.txt" |
+| Gabrielgsn30/fastapi_crud | backend | alive | failed | 32.9 s | **BUG** | Cause right (old pin `greenlet` has no wheel for py3.12, needs gcc). Fix is wrong for a student: "Install gcc by adding it to your Dockerfile". Real fix: loosen/upgrade the pinned versions |
+| eeeeaa/express-api-tutorial | backend | alive | failed | **228.9 s** | **BUG** (time) | Ghost right (`start` runs `nodemon`, a devDependency: "nodemon: not found"), fix "Install nodemon as a dependency" is acceptable. Took almost 4 minutes to say so |
+| NeerajaSurati-265/rz-express-mongo | database | failed + useful ghost | failed | **172.1 s** | PASS (slow) | Cause right. Fix "Check MongoDB service is running or use a cloud MongoDB URI" is weak: "service is running" does not apply on Lambda |
+| Huzaifa-io/express-postgres-crud-api | database | alive/warn | alive | 64.2 s | PASS, note | `db-external` warn is accurate. `GET /` is 404 and every DB route would fail, so the live link shows a bare 404 |
+| weijunext/nextjs-starter | unsupported | cannot_rise | cannot_rise | 3.8 s | **BUG** (copy) | Says "Resurrect only hosts static files today" and "Server apps arrive in a later version", which is false with the flag on (Express works). LLM summary says "It should build successfully"; the LLM lockfile fix says `pnpm install` while the rule says npm |
+| iamvickyav/spring-boot-data-H2-embedded | unsupported | cannot_rise | cannot_rise (`stack-unknown`) | 2.9 s | **BUG** (low) | "Unrecognised project" never names Java/Spring or says it is unsupported |
+
+Other notes: the FastAPI autopsy includes an LLM "SQL injection" finding on SQLAlchemy ORM code (false positive); Django shows LLM findings "ALLOWED_HOSTS is empty" and "debug mode" although the buildspec overrides both. `rz-flask`: my `app.py` is shadowed by an older `app/__init__.py` package already in that folder (so the repo works but has dead code).
+
+**BUGs, ranked by how likely a judge hits them**
+1. **Broken backends take 3-4 minutes to report failure** (Mongo 172 s, Express/nodemon 229 s; a broken static/React build takes 38 s). Any judge who tries a bad backend watches a spinner for minutes. *Fix*: in `statemachine`, treat `INIT_REPORT ... Status: error` / `Runtime.ExitError` in `functions.app_logs` (or a first 502 from the probe) as a failure after one or two probes instead of the full 90 s deadline; cap the backend pulse at about 45 s; fetch the ghost right away.
+2. **Wrong fix for old pinned Python packages** ("add gcc to your Dockerfile"). Pinned `requirements.txt` files from old tutorials are very common. *Fix*: add a ghost rule/prompt hint: when the log shows `Failed building wheel`/`gcc` for pinned versions, say "These pinned versions need compiling. Upgrade them (or remove the `==` pins) in requirements.txt", never mention a Dockerfile; or build wheels in a gcc builder stage so it just works.
+3. **Next.js / server apps copy is stale and contradictory** (judges often try Next.js). *Fix*: with the flag on, change `stack-node-server` text to name the framework ("Next.js is not supported yet; Vite React, plain HTML, FastAPI, Flask, Django and Express are") and drop "only hosts static files"; drop the LLM lockfile/"should build" findings when the rule verdict is `block`.
+4. **Static site without `index.html`** gets the generic "Unrecognised project". *Fix*: if the repo has `.html` files but no `index.html`, show "Rename `X.html` to `index.html`", or serve the single HTML file automatically.
+5. **Python app without requirements.txt** (also nested like `backend/app/main.py`). *Fix*: when a FastAPI/Flask import is found but no requirements/pyproject exists, say "Add requirements.txt (fastapi, uvicorn...)".
+6. **Alive backend whose `/` is 404** shows a bare 404 as the live link. *Fix*: pick `/docs`, `/health` or the first probe path that answered 2xx/3xx as `live_url`, else note "API only: try /<path>".
+7. **Unsupported-language copy** (Java/Go/Ruby/PHP) should name the language. *Fix*: per-language block message.
+8. **Mongo ghost wording**: say "Lambda cannot run MongoDB; use MongoDB Atlas and set the connection string as an env var". *Fix*: prompt hint for `ECONNREFUSED 27017`.
+9. Low: misleading LLM findings (ORM SQL-injection false positive, Django ALLOWED_HOSTS/debug) should be dropped when the build overrides them.
+
+State at the end: flag **ON**, quota 10, 0 live `rz-*`. Waiting for the user on which fixes to make and when to set the flag back to false.
+
+### Matrix fixes, bugs 1-5, 7, 8 (local only: code + tests + package; nothing applied, no AWS calls)
+**Files**: `app/functions.py` (`crash_line`), `app/statemachine.py`, `app/ghost.py` (`rule_ghost`, prompt), `app/detect.py`, `app/autopsy.py`, `tests/test_fixes.py` (56 new), one old test in `tests/test_backends.py` updated for the new deadline. **Check**: `pytest tests` -> **346 passed** (290 + 56), also with AWS credentials unset. `scripts/package_backend.sh` built `build/api.zip` (local sha256 `nAfcirDbmmFEpxB1q6slunFjcouS9+7iDVV7NpyZe2c=`). Mutation check: disabling crash detection fails the fail-fast test.
+- **1 Fail fast**: after a failed probe the backend path reads the app's logs once; `Runtime.ExitError` / `Runtime.Unknown|InvalidEntrypoint|ImportModuleError` / `INIT_REPORT ... Status: error` -> `failed` ("The server crashed") on that poll, ghost built from those same lines, function cleaned up. Otherwise the pulse deadline for backends is **45 s** (was 90). Slow-but-alive apps and one-request tracebacks do not count as crashes. Static keeps 60 s and never reads Lambda logs.
+- **2, 8 Ghost copy**: deterministic ghosts (no model call) for (a) `Failed building wheel for X` / `Could not build wheels for X` / `No matching distribution found for X==` -> "upgrade X or remove the == pins in requirements.txt", never a Dockerfile; (b) a refused connection to localhost:27017/5432/3306 -> "use a hosted database such as MongoDB Atlas / Neon or Supabase and read its URL from an env var". Model prompt also forbids Dockerfile advice and knows both cases. `db-external` finding detail/fix use the same wording per database.
+- **3, 7 Names**: with the flag on, Next.js/NestJS/Koa are named and the supported list is current ("static sites, React (Vite or Create React App), FastAPI, Flask, Django and Express apps"); Java/Spring, Go, Ruby, PHP, Rust, C# are named too (flag off lists only static and React). When any rule blocks, the autopsy uses the rules summary only: no model summary, no model warnings, `source: "rules"`.
+- **4**: `.html` pages in the app folder but no `index.html` -> block `no-index-html`, fix "Rename your main page to index.html." (both flags, stack `static`).
+- **5**: flag on, no requirements.txt/pyproject: the autopsy fetches likely entry files (`main.py`, `app.py`, `backend/app/main.py`, ...) and a FastAPI/Flask app gives block `python-no-requirements` ("Found a FastAPI app in ..., add requirements.txt").
+- **Flag off is unchanged** for node-server copy, `stack-python`, python-without-requirements and the file fetch (tests assert it).
+- **Contract notes**: `Ghost.source` only allows `llm|fallback` (frozen), so rule ghosts say `llm` (the UI shows `fallback` as a generic ghost). Blocked autopsies now say `source: "rules"`, which the UI captions "rules only (the AI review was unavailable)".
+- **Not run**: `terraform plan` (it refreshes against AWS). Expected diff once run: `api` and `reaper` `source_code_hash` only (plus the known drift items); no flag change.
+- **Applied** (user OK, saved plan `-var backends_enabled=true`): plan said 3 change; result **0 added, 2 changed, 0 destroyed** (`api` and `reaper` `source_code_hash`). The `scheduler` policy was Terraform noise and did not change. Live `CodeSha256` is `nAfcirDbmmFEpxB1q6slunFjcouS9+7iDVV7NpyZe2c=`; `BACKENDS_ENABLED=true`, `MAX_LIVE_BACKENDS=2`, `/health` OK. Flag still ON, quota 10.

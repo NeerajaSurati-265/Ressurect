@@ -6,6 +6,7 @@ on cleanup, so the reaper and the failure path can both call it safely.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Dict, List, Optional
 
@@ -133,6 +134,15 @@ def app_logs(res_id: str, lines: int = APP_LOG_LINES, since_ms: Optional[int] = 
             if ln.strip() and not ln.startswith(("START RequestId", "END RequestId", "REPORT RequestId")):
                 out.append(ln.rstrip())
     return out[-lines:]
+
+
+# What Lambda writes when the app dies while starting (gunicorn/uvicorn/node exit, bad entrypoint, import error).
+_CRASH = re.compile(r"Runtime\.(?:ExitError|Unknown|InvalidEntrypoint|ImportModuleError)|INIT_REPORT[^\n]*Status: error")
+
+
+def crash_line(lines: List[str]) -> Optional[str]:
+    """First log line showing the app crashed on startup, or None. A crash is final: no point waiting."""
+    return next((ln for ln in lines if _CRASH.search(ln)), None)
 
 
 def delete(res_id: str) -> bool:

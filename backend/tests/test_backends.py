@@ -263,7 +263,7 @@ def test_create_failure_fails_with_ghost(aws, monkeypatch):
 
 def test_pulse_failure_uses_probe_results_plus_function_logs_scrubbed(aws, monkeypatch):
     aws.lam.functions["rz-r-abc123"] = {}
-    aws.logs.lines = ["START RequestId: x", "pymongo.errors.ServerSelectionTimeoutError: localhost:27017",
+    aws.logs.lines = ["START RequestId: x", "ImportError: cannot import name 'router' from 'app.routes'",
                       "MONGO_URL=mongodb://admin:hunter2@localhost"]
     seen = ghost_spy(monkeypatch)
     rec = backend_rec("checking_pulse")
@@ -273,12 +273,12 @@ def test_pulse_failure_uses_probe_results_plus_function_logs_scrubbed(aws, monke
     rec.res.pulse = Pulse(attempts=3, max_attempts=20)
     monkeypatch.setattr(pulse, "probe_backend",
                         lambda url, paths: pulse.ProbeResult(False, "5xx", ["GET %s/health -> 502" % URL]))
-    # 61 s in: a static site would be failed by now, a backend still has until 90 s
-    assert statemachine.advance(rec, "https://api", NOW + timedelta(seconds=61)) is True
+    # 40 s in: still inside the 45 s a backend gets (a static site gets 60 s)
+    assert statemachine.advance(rec, "https://api", NOW + timedelta(seconds=40)) is True
     assert rec.res.status == "checking_pulse"
-    statemachine.advance(rec, "https://api", NOW + timedelta(seconds=91))
+    statemachine.advance(rec, "https://api", NOW + timedelta(seconds=46))
     assert rec.res.status == "failed" and rec.res.phase_message == "No pulse"
-    assert "ServerSelectionTimeoutError" in seen["user"] and "GET" in seen["user"]
+    assert "ImportError" in seen["user"] and "GET" in seen["user"]
     assert "hunter2" not in seen["user"] and "START RequestId" not in seen["user"]
     assert not any("hunter2" in ln for ln in rec.res.ghost.raw_tail)
     assert "rz-r-abc123" not in aws.lam.functions

@@ -25,8 +25,24 @@ NODE_EXTERNAL_DB = ["pg", "mysql2", "mysql", "mongoose", "mongodb"]
 NODE_SQLITE = ["sqlite3", "better-sqlite3"]
 
 SQLITE_DETAIL = "Gets a temporary database that resets when the app restarts."
-EXTERNAL_DETAIL = ("Needs an external database; set it up on a hosted service and read its URL "
-                   "from an env var.")
+# dependency -> (database, a hosted service that has a free tier). Nothing runs next to the app, so a
+# localhost database can never work; the student needs a hosted one and must read its URL from an env var.
+_DB_KIND = {"pymongo": "mongo", "motor": "mongo", "mongoengine": "mongo", "mongoose": "mongo", "mongodb": "mongo",
+            "psycopg": "postgres", "psycopg2": "postgres", "psycopg2-binary": "postgres",
+            "psycopg-binary": "postgres", "asyncpg": "postgres", "pg": "postgres",
+            "mysqlclient": "mysql", "pymysql": "mysql", "mysql": "mysql", "mysql2": "mysql"}
+_DB_HOSTED = {"mongo": ("MongoDB", "MongoDB Atlas"), "postgres": ("PostgreSQL", "Neon or Supabase"),
+              "mysql": ("MySQL", "a hosted MySQL service")}
+
+
+def external_db_finding(dep: str, file: Optional[str]) -> Finding:
+    name, host = _DB_HOSTED[_DB_KIND.get(dep, "postgres")]
+    return _finding("db-external", "warn", "Needs an external database",
+                    "Needs an external database (%s). Use a hosted database such as %s and read its URL "
+                    "from an env var. Found: %s." % (name, host, dep),
+                    "Create a free hosted database such as %s and read its URL from an env var." % host, file)
+
+
 MAX_EXTRA_FILES = 6
 
 
@@ -120,9 +136,7 @@ def _python_db_findings(py_text: str, sources: str, file: Optional[str], django_
     if uses_sqlite:
         out.append(_finding("db-sqlite", "ok", "Temporary SQLite database", SQLITE_DETAIL, None, file))
     if external:
-        out.append(_finding("db-external", "warn", "Needs an external database",
-                            EXTERNAL_DETAIL + " Found: %s." % external[0],
-                            "Create a free hosted database and read its URL from an env var.", file))
+        out.append(external_db_finding(external[0], file))
     return out
 
 
@@ -266,9 +280,7 @@ def detect_node(app_dir: str, paths: List[str], files: Dict[str, str], pkg: dict
         findings.append(_finding("db-sqlite", "ok", "Temporary SQLite database", SQLITE_DETAIL, None, pkg_file))
     ext = next((d for d in NODE_EXTERNAL_DB if d in deps), None)
     if ext:
-        findings.append(_finding("db-external", "warn", "Needs an external database",
-                                 EXTERNAL_DETAIL + " Found: %s." % ext,
-                                 "Create a free hosted database and read its URL from an env var.", pkg_file))
+        findings.append(external_db_finding(ext, pkg_file))
     info = BackendInfo(
         framework=framework, runtime="node", entry=entry, app_port=port,
         probe_paths=["/health", "/", "/openapi.json"],
@@ -282,3 +294,60 @@ def detect(app_dir: str, paths: List[str], files: Dict[str, str], pkg: dict, has
     if has_pkg:
         return detect_node(app_dir, paths, files, pkg)
     return detect_python(app_dir, paths, files)
+
+
+# ------------------------------------------- Python with no requirements.txt, and unsupported languages
+
+PY_ENTRY_CANDIDATES = FASTAPI_FILES + [f for f in FLASK_FILES if f not in FASTAPI_FILES] + [
+    "backend/main.py", "backend/app.py", "backend/app/main.py", "server/main.py", "server/app.py"]
+_PY_FRAMEWORKS = (("FastAPI", re.compile(r"\bFastAPI\s*\(|^\s*(?:from|import)\s+fastapi\b", re.M)),
+                  ("Flask", re.compile(r"\bFlask\s*\(|^\s*(?:from|import)\s+flask\b", re.M)))
+
+
+def python_entry_candidates(paths: List[str]) -> List[str]:
+    s = set(paths)
+    return [p for p in PY_ENTRY_CANDIDATES if p in s]
+
+
+def python_without_requirements(paths: List[str], files: Dict[str, str]) -> Optional[Finding]:
+    """A FastAPI or Flask app whose repo has no requirements.txt or pyproject.toml (so pip has nothing to read)."""
+    for rel in python_entry_candidates(paths):
+        text = files.get(rel)
+        if not text:
+            continue
+        for name, pattern in _PY_FRAMEWORKS:
+            if pattern.search(text):
+                return _finding(
+                    "python-no-requirements", "block", "No requirements.txt",
+                    "Found a %s app in %s, but the repo has no requirements.txt, so we do not know "
+                    "which packages to install." % (name, rel),
+                    "Add a requirements.txt listing %s and your other packages (run `pip freeze > requirements.txt`)."
+                    % ("fastapi and uvicorn" if name == "FastAPI" else "flask and gunicorn"), rel)
+    return None
+
+
+SUPPORTED_BACKENDS = "static sites, React (Vite or Create React App), FastAPI, Flask, Django and Express apps"
+SUPPORTED_FRONTENDS = "static sites and React apps"
+# first matching file name decides the language (checked at the repo root or one folder down)
+_LANG_FILES = (("Java / Spring", ("pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle")),
+               ("Go", ("go.mod",)), ("Ruby", ("Gemfile",)), ("PHP", ("composer.json",)),
+               ("Rust", ("Cargo.toml",)), ("C# / .NET", ("global.json",)), ("Dart / Flutter", ("pubspec.yaml",)),
+               ("Elixir", ("mix.exs",)))
+_LANG_SUFFIX = ((".csproj", "C# / .NET"), (".sln", "C# / .NET"), (".java", "Java / Spring"), (".go", "Go"),
+                (".rb", "Ruby"), (".php", "PHP"), (".rs", "Rust"))
+
+
+def unsupported_language(paths: List[str]) -> Optional[str]:
+    near = [p for p in paths if p.count("/") <= 1]
+    names = {p.rsplit("/", 1)[-1] for p in near}
+    for lang, files in _LANG_FILES:
+        if any(f in names for f in files):
+            return lang
+    for suffix, lang in _LANG_SUFFIX:
+        if any(p.endswith(suffix) for p in paths):
+            return lang
+    return None
+
+
+def supported_text(backends: bool) -> str:
+    return SUPPORTED_BACKENDS if backends else SUPPORTED_FRONTENDS

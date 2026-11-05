@@ -39,7 +39,10 @@ Reply with ONLY a JSON object:
 - fix: at most 30 words, one concrete action.
 - command: one shell command run from the repo root that applies the fix, or null if none is safe.
 - Never suggest commands that delete files, rewrite git history or use sudo.
-- If the log is cut off or unclear, say so and set confidence to low."""
+- If the log is cut off or unclear, say so and set confidence to low.
+- Resurrect builds the container itself: never tell the student to edit a Dockerfile or install system packages.
+- Old pinned Python packages that fail to build or install: say to upgrade them or remove the == pins in requirements.txt.
+- A database refused on localhost: say to use a hosted database (for example MongoDB Atlas) and read its URL from an env var."""
 
 SUMMARY_SYSTEM_PROMPT = """You review student web projects for Resurrect, a tool that deploys them for 20 minutes.
 You receive the detected stack, the findings from rule-based checks and a few key files.
@@ -142,6 +145,44 @@ def _hints(lines: List[str]) -> List[str]:
     return found[:MAX_HINTS]
 
 
+# ---------------------------------------------------------------- rule-based ghosts
+# Some failures are common, recognisable and badly diagnosed by a model (it blames the Dockerfile for
+# an old pinned package, or "the MongoDB service" for a database that cannot exist on Lambda). Those get a
+# fixed, correct explanation. The contract only allows source "llm" | "fallback"; "llm" is what renders as
+# a normal ghost, so rule ghosts use it.
+_PKG = r"([A-Za-z0-9][A-Za-z0-9._-]{0,60})"
+WHEEL_FAIL = re.compile(r"(?:Failed building wheel for|Could not build wheels? for) " + _PKG, re.I)
+NO_VERSION = re.compile(r"(?:No matching distribution found for|Could not find a version that satisfies the requirement) "
+                        + _PKG + r"(?:==|>=|<=|~=|\s|$)", re.I)
+DB_PORTS = {"27017": ("MongoDB", "MongoDB Atlas", "MONGODB_URI"),
+            "5432": ("PostgreSQL", "Neon or Supabase", "DATABASE_URL"),
+            "3306": ("MySQL", "a hosted MySQL service", "DATABASE_URL")}
+_LOCAL_DB = re.compile(r"(?:localhost|127\.0\.0\.1|::1)\W{1,3}(27017|5432|3306)\b|\bport (27017|5432|3306)\b", re.I)
+_REFUSED = re.compile(r"refused|ECONNREFUSED|ServerSelection|timed out|could not connect|failed", re.I)
+
+
+def rule_ghost(lines: List[str]) -> Optional[Ghost]:
+    """A fixed ghost for a few well-known failures, or None to let the model explain."""
+    tail = tail_window(lines)
+    for ln in lines:
+        m = _LOCAL_DB.search(ln)
+        if m and _REFUSED.search(ln):
+            name, host, var = DB_PORTS[m.group(1) or m.group(2)]
+            return Ghost(
+                cause="The app connects to %s on localhost, but no database runs inside the deployed app." % name,
+                fix="Use a hosted database such as %s and read its URL from an env var, for example %s." % (host, var),
+                command=None, confidence="high", source="llm", raw_tail=tail)
+    for ln in lines:
+        m = WHEEL_FAIL.search(ln) or NO_VERSION.search(ln)
+        if m:
+            pkg = m.group(1).rstrip(".,:;")
+            return Ghost(
+                cause="pip could not install %s: that pinned version has no ready-made package for Python 3.12." % pkg,
+                fix="In requirements.txt, upgrade %s or remove the == pins on old packages so pip picks versions that install." % pkg,
+                command=None, confidence="high", source="llm", raw_tail=tail)
+    return None
+
+
 def fallback_ghost(raw_tail: List[str]) -> Ghost:
     return Ghost(cause=FALLBACK_CAUSE, fix=FALLBACK_FIX, command=None, confidence="low",
                  source="fallback", raw_tail=raw_tail)
@@ -158,6 +199,10 @@ def explain(stack: str, findings: List[Finding], package_json: Optional[str],
     cleaned = scrub_lines(_visible(list(source_lines)))
     lines = cleaned[-LOG_LINES:]
     raw_tail = tail_window(lines)
+
+    known = rule_ghost(cleaned)
+    if known is not None:
+        return known
 
     label = "HTTP check results" if probe_results else "Last build log lines"
     hints = _hints(cleaned)

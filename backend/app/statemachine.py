@@ -15,7 +15,7 @@ PROBE_INTERVAL_S = 2
 PULSE_DEADLINE_S = 60
 MAX_ATTEMPTS = 20
 FAILED_BUILD = {"FAILED", "FAULT", "TIMED_OUT", "STOPPED"}
-BACKEND_PULSE_DEADLINE_S = 90     # cold starts of container functions are slow
+BACKEND_PULSE_DEADLINE_S = 45     # no answer for this long means it is not coming (a crash is caught sooner)
 FUNCTION_PENDING_LIMIT_S = 180    # a function stuck in Pending this long has failed
 
 
@@ -76,10 +76,11 @@ def _advance_build(rec: StoredRecord, now: datetime) -> bool:
     return changed
 
 
-def _fail_backend(rec: StoredRecord, phase: str, details: list) -> None:
+def _fail_backend(rec: StoredRecord, phase: str, details: list, app_lines: Optional[list] = None) -> None:
     """Failed backend: ghost from what we know plus the app's own logs, then free its live slot."""
     r = rec.res
-    app_lines = functions.app_logs(r.id)
+    if app_lines is None:
+        app_lines = functions.app_logs(r.id)
     evidence = list(details) + (["--- app logs ---"] + app_lines if app_lines else [])
     r.status = "failed"
     r.phase_message = phase
@@ -145,9 +146,21 @@ def _advance_pulse(rec: StoredRecord, api_url: str, now: datetime) -> bool:
 
     if result.ok:
         _mark_alive(rec, api_url, now)
-    elif (now - started).total_seconds() >= deadline or pulse_state.attempts >= pulse_state.max_attempts:
+        return True
+
+    app_lines = None
+    if rec.backend is not None:
+        # A crashed app never recovers, so do not wait out the deadline: read its logs and fail now.
+        app_lines = functions.app_logs(r.id)
+        crash = functions.crash_line(app_lines)
+        if crash:
+            _fail_backend(rec, "The server crashed", list(result.details) + ["App crashed on startup: " + crash[:300]],
+                          app_lines)
+            return True
+
+    if (now - started).total_seconds() >= deadline or pulse_state.attempts >= pulse_state.max_attempts:
         if rec.backend is not None:
-            _fail_backend(rec, "No pulse", result.details)
+            _fail_backend(rec, "No pulse", result.details, app_lines)
         else:
             r.status = "failed"
             r.phase_message = "No pulse"
