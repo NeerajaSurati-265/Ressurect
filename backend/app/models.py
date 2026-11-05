@@ -115,6 +115,20 @@ class BackendInfo(BaseModel):
     has_build_script: bool = False
 
 
+class FullstackInfo(BaseModel):
+    """B5: a React frontend plus a supported backend from one repo. Internal, never in the API."""
+
+    frontend_dir: str
+    backend_dir: str
+    frontend_stack: str                # react-vite | react-cra
+    backend: BackendInfo
+    wiring_kind: str                   # env | localhost | proxy | unsupported | none
+    env_names: List[str] = []
+    localhost_urls: List[str] = []     # exact origins, e.g. http://localhost:8000
+    unsupported_names: List[str] = []  # API-looking env names the build cannot set (NEXT_PUBLIC_*, ...)
+    app_cors: bool = False             # the backend configures its own CORS
+
+
 class StoredRecord(BaseModel):
     """What lives in DynamoDB: the public record plus internal bookkeeping."""
 
@@ -129,6 +143,12 @@ class StoredRecord(BaseModel):
     backend: Optional[BackendInfo] = None  # B4: how to build and run a backend app (internal)
     function_url: Optional[str] = None      # B4: the rz-<id> Function URL once created
     function_created_at: Optional[str] = None
+    fullstack: Optional[FullstackInfo] = None  # B5: both halves of a full-stack repo (internal)
+    fe_build_id: Optional[str] = None
+    fe_log_stream: Optional[str] = None
+    fe_pulse_offset: Optional[int] = None
+    fs_stage: Optional[str] = None          # backend | backend_pulse | frontend | frontend_pulse
+    quota_slot_pk: Optional[str] = None     # counter holding the frontend build's reserved slot
     version: int = 0
 
     def to_api(self, server_time: str) -> dict:

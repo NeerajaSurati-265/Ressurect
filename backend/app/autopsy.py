@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 
 from . import config, detect, ghost, github
-from .models import Autopsy, BackendInfo, Finding, RepoRef
+from .models import Autopsy, BackendInfo, Finding, FullstackInfo, RepoRef
 
 APP_DIR_CANDIDATES = ["frontend", "client", "web", "app", "site"]
 SERVER_DEPS = ["express", "fastify", "koa", "@nestjs/core", "next"]
@@ -118,11 +118,46 @@ def analyze(paths: List[str], files: Dict[str, str],
     return autopsy, pkg_text
 
 
-def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool] = None
-               ) -> Tuple[Autopsy, Optional[str], Optional[BackendInfo]]:
+def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool] = None,
+               fullstack: Optional[bool] = None) -> Tuple[Autopsy, Optional[str], Optional[BackendInfo]]:
     """Like analyze, plus the backend run info (only ever set when backends are enabled)."""
+    autopsy, pkg_text, info, _ = analyze_full(paths, files, backends, fullstack)
+    return autopsy, pkg_text, info
+
+
+def analyze_full(paths: List[str], files: Dict[str, str], backends: Optional[bool] = None,
+                 fullstack: Optional[bool] = None
+                 ) -> Tuple[Autopsy, Optional[str], Optional[BackendInfo], Optional[FullstackInfo]]:
+    """analyze_ex plus the full-stack record (B5). With the flag off this is exactly analyze_ex."""
     if backends is None:
         backends = config.settings().backends_enabled
+    if fullstack is None:
+        fullstack = config.settings().fullstack_enabled
+    if fullstack and backends and paths:
+        found = detect.detect_fullstack(paths, files)
+        if found is not None:
+            stack, app_dir, findings, _, pkg_text = _rules(paths, files, False, found.frontend_dir)
+            wiring = detect.classify_wiring(found.frontend_dir, found.frontend_stack, paths, files)
+            be = found.backend
+            app_cors = bool(be.info) and detect.backend_has_cors(be.info, found.backend_dir, files)
+            findings = findings + detect.fullstack_findings(found, wiring, app_cors) + be.findings
+            fs = None
+            if be.info is not None:
+                fs = FullstackInfo(
+                    frontend_dir=found.frontend_dir, backend_dir=found.backend_dir,
+                    frontend_stack=found.frontend_stack, backend=be.info, wiring_kind=wiring.kind,
+                    env_names=wiring.env_names, localhost_urls=wiring.localhost_urls,
+                    unsupported_names=wiring.unsupported_names, app_cors=app_cors)
+            return _finish(stack, app_dir, findings, files), pkg_text, (fs.backend if fs else None), fs
+    stack, app_dir, findings, info, pkg_text = _rules(paths, files, backends, None)
+    if not paths:
+        return _finish(stack, app_dir, findings, files), None, None, None
+    return _finish(stack, app_dir, findings, files), pkg_text, info, None
+
+
+def _rules(paths: List[str], files: Dict[str, str], backends: bool, force_app_dir: Optional[str]
+           ) -> Tuple[str, str, List[Finding], Optional[BackendInfo], Optional[str]]:
+    """The rule engine: (stack, app_dir, findings, backend info, package.json text)."""
     s = set(paths)
     info: Optional[BackendInfo] = None
     findings: List[Finding] = []
@@ -131,9 +166,9 @@ def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool]
         findings.append(_finding("empty-repo", "block", "Nothing to resurrect",
                                  "This repo has no files on its default branch.",
                                  "Push your code to the default branch."))
-        return _finish("unknown", ".", findings, files), None, None
+        return "unknown", ".", findings, None, None
 
-    app_dir = pick_app_dir(paths, backends)
+    app_dir = force_app_dir or pick_app_dir(paths, backends)
     pkg_path = _join(app_dir, "package.json")
     has_pkg = pkg_path in s
     has_index = _join(app_dir, "index.html") in s
@@ -244,7 +279,7 @@ def analyze_ex(paths: List[str], files: Dict[str, str], backends: Optional[bool]
                                      "We override it during the build; check your asset paths.", cfg))
             break
 
-    return _finish(stack, app_dir, findings, files), pkg_text, info
+    return stack, app_dir, findings, info, pkg_text
 
 
 def _finish(stack: str, app_dir: str, findings: List[Finding], files: Optional[Dict[str, str]] = None) -> Autopsy:
@@ -270,12 +305,29 @@ def is_deployable(autopsy: Autopsy, backend: Optional[BackendInfo] = None) -> bo
     return autopsy.stack in ("static", "react-vite", "react-cra") or backend is not None
 
 
+def _fullstack_files(client, owner: str, name: str, branch: str, paths: List[str],
+                     files: Dict[str, str]) -> Dict[str, str]:
+    """B5 extra rounds (flag on only): candidate manifests, then the backend's entry files and the
+    frontend's source files. Nothing is fetched unless the repo really has both halves."""
+    got = github.fetch_raw_files(client, owner, name, branch,
+                                 [p for p in detect.fullstack_fetch_plan(paths) if p not in files])
+    have = {**files, **got}
+    found = detect.detect_fullstack(paths, have)
+    if found is None:
+        return got
+    more = detect.extra_files(found.backend_dir, paths, have)
+    more += [p for p in detect.frontend_source_files(found.frontend_dir, paths) if p not in have]
+    got.update(github.fetch_raw_files(client, owner, name, branch, [p for p in more if p not in have]))
+    return got
+
+
 @dataclass
 class AutopsyResult:
     autopsy: Autopsy
     repo: RepoRef
     package_json: Optional[str]
     backend: Optional[BackendInfo] = None
+    fullstack: Optional[FullstackInfo] = None
 
 
 def run(parsed: github.ParsedUrl) -> AutopsyResult:
@@ -293,7 +345,10 @@ def run(parsed: github.ParsedUrl) -> AutopsyResult:
         if backends:  # entry modules and Django settings, once we know what the first files say
             more = detect.extra_files(app_dir, paths, files)
             files.update(github.fetch_raw_files(client, owner, name, branch, more))
-    autopsy, pkg_text, backend = analyze_ex(paths, files, backends)
+        if backends and config.settings().fullstack_enabled:
+            files.update(_fullstack_files(client, owner, name, branch, paths, files))
+    autopsy, pkg_text, backend, fullstack = analyze_full(paths, files, backends)
     repo = RepoRef(owner=owner, name=name, url=f"https://github.com/{owner}/{name}",
                    default_branch=branch, commit_sha=sha)
-    return AutopsyResult(autopsy=autopsy, repo=repo, package_json=(pkg_text or "")[:6000] or None, backend=backend)
+    return AutopsyResult(autopsy=autopsy, repo=repo, package_json=(pkg_text or "")[:6000] or None, backend=backend,
+                         fullstack=fullstack)

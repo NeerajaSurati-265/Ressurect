@@ -387,3 +387,66 @@ Throttles 0 before and after every run; one at a time; no `rz-*`, ECR tag or log
 3. Bug 6 (alive backend whose `/` is 404, e.g. express-postgres-crud-api) was not in this batch and is still open; so are the low items (Django/ORM misleading model findings).
 4. Rule ghosts must say `source: "llm"` and blocked autopsies say `source: "rules"` (frozen contract), so the UI caption "rules only (the AI review was unavailable)" appears on them; only fixable in the frontend.
 5. Failure times: Mongo is 82 s (65 s build + crash detection). A further cut would need faster builds, not logic changes.
+
+## B5 — full-stack (branch `feat/fullstack`)
+
+### Phase 0 — Preflight: DONE (read-only)
+- Branch contains B4 (`functions.py`, `buildspec/backend-container.yml`, `infra/apps.tf`); baseline **346 tests pass** (`env -u PYTHONPATH .venv/bin/python -m pytest`).
+- Lambda concurrency quota (`L-B99A9384`, us-east-1): **1000** (the B4 increase is approved), so live tests are safe on quota grounds; still check throttles per run.
+- Approved decisions: backend raise + pulse stay in `building` (status never goes backwards); 2 builds reserved atomically at POST/retry, the unused frontend slot is released if the backend half fails before the frontend build starts; app-level CORS is detected and recorded as a finding, real headers are checked live with curl before choosing a strategy (no duplicate `Access-Control-Allow-Origin`); localhost rewrite touches only exact detected origins; one shared `expires_at` from alive; wiring supports only `VITE_*` / `REACT_APP_*` (anything else is `unsupported`); flag-off regression runs after the buildspec Terraform update is applied.
+
+### Phase 1 — Detection: DONE locally (no AWS)
+**Files**
+- `app/config.py`: `fullstack_enabled` (true only when `FULLSTACK_ENABLED` and `BACKENDS_ENABLED` are both true).
+- `app/models.py`: `FullstackInfo`; `StoredRecord.fullstack/fe_build_id/fe_log_stream/fe_pulse_offset` (internal, not in `to_api`).
+- `app/detect.py`: `detect_fullstack`, `classify_wiring`, `backend_has_cors`, `fullstack_findings`, fetch planners.
+- `app/autopsy.py`: `analyze_ex` split into `analyze_full` + `_rules` (flag off is the same code path as before); `AutopsyResult.fullstack`; `_fullstack_files` (extra fetch rounds, flag on and both halves present only).
+- `tests/test_fullstack.py`: 20 tests.
+**Check**: `pytest tests` -> **366 passed** (346 existing unchanged + 20 new).
+**Covered**: Vite+FastAPI `VITE_API_URL`; CRA+Express `REACT_APP_API_URL`; Vite+Flask hard-coded localhost (both `localhost` and `127.0.0.1`); Vite dev proxy (warn with "read the API URL from `VITE_API_URL` instead of the dev proxy"); none found (warn); `NEXT_PUBLIC_*` and the wrong prefix for the stack -> `unsupported` (warn); env names from `.env.example`; env wins over a localhost fallback; Vite+Django; own-CORS finding (`backend-cors`); blocked backend blocks the whole resurrection; same-folder repos are not full-stack; frontend-only and backend-only unchanged; flag off identical to the pre-B5 call (picks `frontend/`, no `fullstack-*` findings, two fetch rounds only); no extra fetches for frontend-only repos.
+**Decisions**: `unsupported` and `proxy`/`none` deploy with a `warn`; the clear "API address not wired" ghost is raised by the Phase 3 wiring check only for `env`/`localhost`. A recognised-but-broken backend (e.g. FastAPI without `app = FastAPI()`) blocks the whole resurrection with its normal finding.
+**Known gap until Phase 3**: `service._apply_autopsy` does not yet use `AutopsyResult.fullstack`, so with the flag on a full-stack repo would still take the plain backend path. The flag defaults to false and nothing is applied.
+**Next**: Phase 2 (buildspec wiring, `builds.start` frontend inputs, CORS in `functions.create`, local Docker proof).
+
+### Phase 1 follow-ups (approved wording)
+- Broken backend: finding `fullstack-backend-blocked` says the frontend looked fine and the backend is the blocker (then the backend's own block finding).
+- `unsupported` wiring warning: "we cannot wire the API address and cannot verify the wiring. The frontend's API calls may not reach the server."
+- (a) app-level CORS recorded as `backend-cors` + `FullstackInfo.app_cors` (FastAPI `CORSMiddleware`, flask-cors, Django corsheaders, Express/`cors`, `@fastify/cors`); (b) `NEXT_PUBLIC_*`, `GATSBY_*`, `EXPO_PUBLIC_*`, `NUXT_PUBLIC_*`, `PUBLIC_*`, bare `API_URL`, and the wrong prefix for the stack are all `unsupported` (parametrised test).
+
+### Phase 2 — Build and wiring: DONE locally (no AWS)
+**Files**
+- `buildspec/static-react.yml`: optional inputs `WIRE_URL`, `WIRE_ENV_NAMES`, `REWRITE_ORIGINS` (default empty). Strict regexes (URL `https://<id>.lambda-url.us-east-1.on.aws`, names `^[A-Z][A-Z0-9_]{0,63}$` and `VITE_`/`REACT_APP_` only, origins `http://localhost|127.0.0.1:<port>`), rejected before cloning. `wire_env` exports the names just before the build command; `rewrite_origins` does a literal, whole-origin (`(?![0-9])`) replacement in `__resurrect_dist/` or `build/` only (`.js .css .html`) and prints how many files changed. Source is never touched.
+- `app/builds.py`: `wiring_env` (same validation again) and `start_frontend` (project `resurrect-build`; empty wiring = byte-identical env to `builds.start`).
+- `app/functions.py`: `create(..., cors_origin=None)` sets the Function URL's own `Cors` (AllowOrigins=[origin], methods `*`, headers `*`, no credentials) only when asked; B4 callers unchanged.
+- `scripts/local_fullstack_check.sh`, `tests/fixtures/fullstack/{backend,vite-env,vite-localhost}`, `tests/test_fullstack_build.py` (24 tests). `tests/test_buildspec.py::test_static_buildspec_untouched` removed (it asserted "no git diff"; replaced by the stronger empty-inputs trace test below).
+**Checks**
+- `pytest tests` -> **396 passed** (345 original unchanged + 27 in `test_fullstack.py` + 24 in `test_fullstack_build.py`; the one removed original test is explained above).
+- YAML parses; `bash -n` passes; for static / react-vite / react-cra, the new block and the block from commit 6671272 run under stubbed git/npm/npx/aws record **identical command logs** with empty inputs.
+- Bad URL / name / origin (incl. injection attempts) exit 1 before any git or npm call.
+- Rewrite test: `http://localhost:3000`, `http://localhost:80001`, `https://example.com:8000`, `localhost:8000` untouched; `http://localhost:8000x` loses only its origin.
+- Local Docker (`scripts/local_fullstack_check.sh env|localhost`): the real backend block builds the FastAPI image (`/notes` 200, add-then-list works on a read-only FS, `Origin` request gets the app's own `access-control-allow-origin: *`); the real static block builds the Vite frontend: built JS contains the Function URL, no `localhost:8000`, unrelated `localhost:3000` kept, source unchanged.
+**Not provable locally**: the Function URL's own `Cors` interplay with app-level CORS (Docker has no Function URL layer). Phase 5 checks real headers with `curl -i -H "Origin: ..."` (GET and OPTIONS) on both CORS repos before the strategy is chosen; no duplicate `Access-Control-Allow-Origin` is allowed.
+**Terraform note**: editing `static-react.yml` changes `aws_codebuild_project.build` in place (buildspec). Phase 5 applies that first, then runs the flag-off regression.
+**Phase 3 TODO (from review)**: add a test that, with the flag on, a full-stack repo takes the full-stack path through `service._apply_autopsy` (and a flag-off twin).
+
+### Phase 3 — State machine, pulse, logs, cleanup, guardrails: DONE locally (fake AWS; nothing applied)
+**Files**: `app/fullstack.py` (new: the whole full-stack machine), `app/statemachine.py` (hook at the top of `advance`; `_mark_alive` keeps the graves `live_url` for full-stack), `app/service.py` (`_start_fullstack`, resets, live-cap drops `fullstack` too), `app/limits.py` (`reserve_build(admin, count)` all-or-nothing, returns the charged key; `release_build`), `app/logs.py` (`fetch_fullstack`, `tail(..., stream)`, cursor `{t, p, t2}`; single-build cursors byte-identical), `app/pulse.py` (`check_wiring`, `ProbeResult.transient`), `app/models.py` (`fs_stage`, `quota_slot_pk`), `infra/variables.tf` + `infra/lambda.tf` (`FULLSTACK_ENABLED`, default `"false"`), `tests/test_fullstack_flow.py` (31 tests).
+**Flow** (status never goes backwards): `summoning` -> `building` ("Raising the server": backend image, function with Function-URL CORS = graves origin, backend pulse) -> system line "The server lives at <url>. Now building the frontend." -> `building` ("Building the frontend") -> `checking_pulse` (frontend pulse, then the wiring check) -> `alive`. `live_url` = the graves URL; one `expires_at` (20 min from alive), one schedule, one reaper run for both halves.
+**Wiring check**: the live page's first JS asset (up to 4 incl. modulepreload chunks) must contain the Function URL. `env`/`localhost` missing -> `failed` ("The frontend build failed. ..." + the env name / localhost URL that did not get wired); a check that cannot look (network/HTTP error) is retried until the 60 s deadline; `proxy`/`none`/`unsupported` pass with their warning.
+**Failures**: either half -> `failed`; ghost cause starts "The API failed to start." or "The frontend build failed."; the backend function, image tag and log group are removed at once (also after a frontend failure); the unused frontend quota slot is given back if the backend half fails before the frontend build starts; if the first build cannot even start, both slots are given back.
+**Quota/cap**: 2 builds reserved atomically at POST/retry (admin: none charged); one backend against `MAX_LIVE_BACKENDS` (cap reached -> `cannot_rise`, no quota, `fullstack` dropped). Retry re-runs both halves with fresh state.
+**Check**: `pytest tests` -> **427 passed** (345 original + 27 detection + 24 build/wiring + 31 flow). Includes: every transition, both failure halves, backend crash, no-pulse, pending timeout, wiring failure (env and localhost), unreadable wiring, cleanup after a frontend failure with a live backend, reaper removes S3 + function + image + log group and a second run is a no-op, live cap, quota 2 and all-or-nothing, retry, two-stream logs with a single cursor, flag on takes the full-stack path end to end (real autopsy), flag off identical (one slot, frontend folder, no Lambda calls), internal fields absent from the API. `terraform fmt -check` and `validate` pass.
+
+### Phase 4 — Test repos and dry run: DONE locally (no AWS writes)
+**Test repos** (outside this repo, each a local git repo with one commit, NOT pushed): `~/resurrect-test-repos/`
+- `rz-fullstack-fastapi`: Vite in `frontend/` (`import.meta.env.VITE_API_URL`, list + add form), FastAPI + SQLite in `backend/`, **no app CORS** (relies on the platform).
+- `rz-fullstack-express`: CRA in `client/` (`REACT_APP_API_URL`), Express in `server/` with its own `cors()` (`PORT` honoured -> adapter port 8080).
+- `rz-fullstack-localhost`: Vite with `http://localhost:8000` hard-coded, FastAPI with its own `CORSMiddleware`.
+- `rz-fullstack-proxy`: Vite dev proxy for `/api`, FastAPI serving `/api/notes`; expected to deploy with the proxy warning.
+**Runner**: `scripts/local_fullstack_repo.sh <repo>` (+ `scripts/fullstack_plan.py`): the REAL autopsy (flags on, same fetch planning and caps, files served from disk) -> real `backend-container.yml` block -> Docker container with Lambda-like flags -> real `static-react.yml` block with exactly the wiring inputs the state machine would send -> serve the built site and inspect its JS.
+**Results**: all four detected and built; backend containers answer; add-then-list works (FastAPI); Express returns its JSON. fastapi: built JS contains the Function URL. express: same, with `REACT_APP_API_URL`. localhost: origin rewritten in 1 file, no `localhost:8000` left. proxy: warns (`fullstack-wiring`), deploys unwired.
+**App-level CORS as seen by the containers (Origin: the graves origin)**: FastAPI without CORS: no `Access-Control-*` headers, preflight 405. Express `cors()`: `Access-Control-Allow-Origin: *`, preflight 204. FastAPI `CORSMiddleware`: `access-control-allow-origin: *`, preflight 200. A Function URL's own `Cors` on top of the last two may duplicate `Access-Control-Allow-Origin`; Phase 5 settles it with `curl -i` (GET and OPTIONS) on the express and localhost repos before choosing the strategy.
+**Bug found by the dry run**: a Vite `server.proxy` target of `http://localhost:8000` in `vite.config.js` was read as a hard-coded API call (the source scan included config `.js` files), so the proxy repo was classified `localhost`. Fixed: only `src/**` is scanned; test added.
+**terraform plan** (read-only, after `scripts/package_backend.sh`): **0 to add, 5 to change, 0 to destroy** with `-var backends_enabled=true`: `aws_codebuild_project.build` (buildspec only), `aws_lambda_function.api` (+`FULLSTACK_ENABLED="false"`, code hash), `aws_lambda_function.reaper` (code hash), `aws_iam_role_policy.api` and `.scheduler` (deferred policy documents; known-after-apply, same as B4).
+> **Important:** the live API Lambda has `BACKENDS_ENABLED="true"`, but the Terraform default is `"false"`. A plain `terraform apply` would turn backends OFF (`"true" -> "false"`). Phase 5 must pass `-var backends_enabled=true`.
+**Suite**: 428 passed.

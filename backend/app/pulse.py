@@ -20,6 +20,7 @@ class ProbeResult:
     ok: bool
     summary: str
     details: List[str] = field(default_factory=list)
+    transient: bool = False   # wiring check only: could not look (network), as opposed to "looked, not there"
 
 
 def pick_asset(html: str, res_id: str) -> Optional[str]:
@@ -103,3 +104,48 @@ def probe_backend(base_url: str, paths: List[str], now=None) -> ProbeResult:
         details.append(f"Request failed: {exc.__class__.__name__}")
         return ProbeResult(False, "The app did not answer in time.", details)
     return ProbeResult(False, "The app answered with server errors.", details)
+
+
+WIRING_MAX_ASSETS = 4
+
+
+def _script_assets(html: str, res_id: str) -> List[str]:
+    prefix = f"/{res_id}/"
+    seen: List[str] = []
+    for m in _SCRIPT_SRC.finditer(html):
+        if m.group(1).startswith(prefix) and m.group(1) not in seen:
+            seen.append(m.group(1))
+    for tag in _LINK_TAG.findall(html):
+        if re.search(r"\brel=[\"']?modulepreload", tag, re.I):
+            m = _HREF.search(tag)
+            if m and m.group(1).startswith(prefix) and m.group(1) not in seen:
+                seen.append(m.group(1))
+    return [a for a in seen if a.split("?")[0].endswith((".js", ".mjs"))][:WIRING_MAX_ASSETS]
+
+
+def check_wiring(graves_url: str, res_id: str, function_url: str) -> ProbeResult:
+    """Does the LIVE frontend's JS contain the backend's Function URL? (the first JS asset, then a few more)"""
+    base = graves_url.rstrip("/")
+    needle = function_url.rstrip("/")
+    details: List[str] = []
+    try:
+        with httpx.Client(timeout=TIMEOUT, follow_redirects=False) as client:
+            page = client.get(f"{base}/{res_id}/")
+            if page.status_code != 200:
+                details.append(f"GET {base}/{res_id}/ -> {page.status_code}")
+                return ProbeResult(False, "Could not read the live page to check the wiring.", details, True)
+            assets = _script_assets(page.text, res_id)
+            if not assets:
+                details.append("The live page has no JavaScript asset to check")
+                return ProbeResult(False, "The live page has no JavaScript to check.", details, False)
+            for asset in assets:
+                resp = client.get(f"{base}{asset}")
+                details.append(f"GET {base}{asset} -> {resp.status_code}")
+                if resp.status_code != 200:
+                    return ProbeResult(False, f"{asset} answered HTTP {resp.status_code}.", details, True)
+                if needle in resp.text:
+                    return ProbeResult(True, f"{asset} contains the backend address.", details)
+    except httpx.HTTPError as exc:
+        details.append(f"Request failed: {exc.__class__.__name__}")
+        return ProbeResult(False, "Could not read the live JavaScript to check the wiring.", details, True)
+    return ProbeResult(False, "The live JavaScript does not contain the backend address.", details, False)

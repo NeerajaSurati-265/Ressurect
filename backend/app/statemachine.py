@@ -22,6 +22,9 @@ FUNCTION_PENDING_LIMIT_S = 180    # a function stuck in Pending this long has fa
 def advance(rec: StoredRecord, api_url: str = "", now: Optional[datetime] = None) -> bool:
     """Move the record forward if the world changed. Returns True if the record needs saving."""
     now = now or now_utc()
+    if rec.fullstack is not None:  # B5: a React frontend plus a backend, one record
+        from . import fullstack
+        return fullstack.advance(rec, api_url, now)
     status = rec.res.status
     if status == "alive":
         return _expire_if_due(rec, now)
@@ -174,7 +177,7 @@ def _mark_alive(rec: StoredRecord, api_url: str, now: datetime) -> None:
     r = rec.res
     r.status = "alive"
     r.phase_message = "It lives"
-    if rec.backend is not None and rec.function_url:
+    if rec.backend is not None and rec.function_url and rec.fullstack is None:
         r.live_url = rec.function_url.rstrip("/") + (rec.backend.live_path or "/")
     else:
         r.live_url = f"{s.graves_url}/{r.id}/"

@@ -2,6 +2,11 @@ version: 0.2
 
 # Variables supplied by StartBuild (environmentVariablesOverride):
 #   REPO_URL, RES_ID, STACK (static | react-vite | react-cra), APP_DIR (default "."), BUCKET, COMMIT_SHA
+# Optional (B5 full-stack; all default empty, and empty means exactly the commands this file always ran):
+#   WIRE_URL         the backend's Function URL (https://<id>.lambda-url.us-east-1.on.aws, no trailing slash)
+#   WIRE_ENV_NAMES   comma-separated VITE_* / REACT_APP_* names, set to WIRE_URL for the build step only
+#   REWRITE_ORIGINS  comma-separated exact origins (http://localhost:<port>, http://127.0.0.1:<port>) that are
+#                    replaced by WIRE_URL in the BUILT output only (never in the source)
 env:
   shell: bash
   variables:
@@ -16,6 +21,54 @@ phases:
       - |
         set -euo pipefail
         APP_DIR="${APP_DIR:-.}"
+        WIRE_URL="${WIRE_URL:-}"
+        WIRE_URL="${WIRE_URL%/}"
+        WIRE_ENV_NAMES="${WIRE_ENV_NAMES:-}"
+        REWRITE_ORIGINS="${REWRITE_ORIGINS:-}"
+        if [ -n "$WIRE_URL$WIRE_ENV_NAMES$REWRITE_ORIGINS" ]; then
+          [[ "$WIRE_URL" =~ ^https://[a-z0-9]+\.lambda-url\.us-east-1\.on\.aws$ ]] || { echo "bad WIRE_URL" >&2; exit 1; }
+          if [ -n "$WIRE_ENV_NAMES" ]; then
+            for n in ${WIRE_ENV_NAMES//,/ }; do
+              [[ "$n" =~ ^[A-Z][A-Z0-9_]{0,63}$ && "$n" =~ ^(VITE_|REACT_APP_) ]] || { echo "bad WIRE_ENV_NAMES" >&2; exit 1; }
+            done
+          fi
+          if [ -n "$REWRITE_ORIGINS" ]; then
+            for o in ${REWRITE_ORIGINS//,/ }; do
+              [[ "$o" =~ ^http://(localhost|127\.0\.0\.1):[0-9]{2,5}$ ]] || { echo "bad REWRITE_ORIGINS" >&2; exit 1; }
+            done
+          fi
+        fi
+        # Exports the backend URL under each env name; the build commands below inherit it.
+        wire_env() {
+          [ -n "$WIRE_ENV_NAMES" ] || return 0
+          for n in ${WIRE_ENV_NAMES//,/ }; do export "$n=$WIRE_URL"; done
+          echo "Wired ${WIRE_ENV_NAMES} to the backend URL"
+        }
+        # Literal replacement of the exact origins in the built files only (.js .css .html).
+        rewrite_origins() {
+          [ -n "$REWRITE_ORIGINS" ] || return 0
+          python3 - "$1" "$WIRE_URL" "$REWRITE_ORIGINS" <<'PY'
+        import os, re, sys
+        root, url, origins = sys.argv[1], sys.argv[2], [o for o in sys.argv[3].split(",") if o]
+        pats = [re.compile(re.escape(o) + r"(?![0-9])") for o in sorted(origins, key=len, reverse=True)]
+        changed = 0
+        for d, _, names in os.walk(root):
+            for n in names:
+                if not n.endswith((".js", ".css", ".html")):
+                    continue
+                p = os.path.join(d, n)
+                with open(p, encoding="utf-8", errors="surrogateescape") as f:
+                    text = f.read()
+                new = text
+                for pat in pats:
+                    new = pat.sub(lambda m: url, new)
+                if new != text:
+                    with open(p, "w", encoding="utf-8", errors="surrogateescape") as f:
+                        f.write(new)
+                    changed += 1
+        print("Rewrote the backend origin in %d file(s)" % changed)
+        PY
+        }
         echo "::resurrect:: phase=cloning"
         git clone --depth 1 "$REPO_URL" src
         cd "src/$APP_DIR"
@@ -28,7 +81,9 @@ phases:
             echo "::resurrect:: phase=installing"
             npm ci || npm install
             echo "::resurrect:: phase=building"
+            wire_env
             npx vite build --base="/$RES_ID/" --outDir __resurrect_dist
+            rewrite_origins __resurrect_dist
             echo "::resurrect:: phase=uploading"
             aws s3 sync __resurrect_dist "s3://$BUCKET/graves/$RES_ID/"
             ;;
@@ -36,7 +91,9 @@ phases:
             echo "::resurrect:: phase=installing"
             npm ci || npm install
             echo "::resurrect:: phase=building"
+            wire_env
             PUBLIC_URL="/$RES_ID/" CI=false npm run build
+            rewrite_origins build
             echo "::resurrect:: phase=uploading"
             aws s3 sync build "s3://$BUCKET/graves/$RES_ID/"
             ;;

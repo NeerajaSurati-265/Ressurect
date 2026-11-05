@@ -6,7 +6,7 @@ is true; with the flag off the autopsy never calls into this module, so behaviou
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from .models import BackendInfo, Finding
@@ -351,3 +351,198 @@ def unsupported_language(paths: List[str]) -> Optional[str]:
 
 def supported_text(backends: bool) -> str:
     return SUPPORTED_BACKENDS if backends else SUPPORTED_FRONTENDS
+
+
+# ================================================================ B5: full-stack (frontend + backend)
+
+FRONTEND_DIRS = [".", "frontend", "client", "web", "app", "site"]
+FULLSTACK_BACKEND_DIRS = [".", "backend", "server", "api"]
+VITE_CONFIGS = ["vite.config.js", "vite.config.ts", "vite.config.mjs"]
+MAX_SOURCE_FILES = 16
+MAX_ENV_FILES = 3
+SOURCE_EXT = (".js", ".jsx", ".ts", ".tsx")
+ENV_FILE_NAMES = (".env.example", ".env.production", ".env.sample")
+API_WORD = re.compile(r"API|BACKEND|SERVER|BASE_URL")
+VITE_BUILTIN = {"BASE_URL", "MODE", "PROD", "DEV", "SSR"}
+ENV_NAME_RE = r"^[A-Z][A-Z0-9_]{0,63}$"
+
+_ENV_ACCESS = re.compile(r"(?:import\.meta\.env|process\.env)\.([A-Za-z_][A-Za-z0-9_]*)")
+_ENV_BRACKET = re.compile(r"""(?:import\.meta\.env|process\.env)\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]""")
+_ENV_LINE = re.compile(r"(?m)^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+_LOCALHOST = re.compile(r"https?://(?:localhost|127\.0\.0\.1):\d{2,5}(?![\d])")
+_RELATIVE_CALL = re.compile(r"""(?:fetch|axios(?:\.\w+)?|\$http\.\w+|api\.\w+)\(\s*[`"']/(?!/)""")
+_PROXY_KEY = re.compile(r"\bproxy\s*:")
+
+_CORS_PY = ("flask_cors", "flask-cors", "django-cors-headers", "corsheaders")
+_CORS_SRC = re.compile(r"CORSMiddleware|flask_cors|corsheaders|require\(\s*['\"]cors['\"]\s*\)|"
+                       r"from\s+['\"]cors['\"]|@fastify/cors|fastify-cors|\bCORS\(")
+
+
+def _loads(text: Optional[str]) -> dict:
+    import json
+    try:
+        data = json.loads(text) if text else {}
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def frontend_stack_of(app_dir: str, paths: List[str], files: Dict[str, str]) -> Optional[str]:
+    """react-vite or react-cra if this folder holds a deployable React frontend, else None."""
+    s = set(paths)
+    pkg_path = _join(app_dir, "package.json")
+    if pkg_path not in s:
+        return None
+    pkg = _loads(files.get(pkg_path))
+    deps = {**(pkg.get("dependencies") or {}), **(pkg.get("devDependencies") or {})}
+    if "react-scripts" in deps:
+        return "react-cra"
+    if "vite" in deps and _join(app_dir, "index.html") in s:
+        return "react-vite"
+    return None
+
+
+def fullstack_fetch_plan(paths: List[str]) -> List[str]:
+    """Round one: the small manifest files of every candidate folder (the tree tells us what exists)."""
+    s = set(paths)
+    want: List[str] = []
+    for d in FRONTEND_DIRS + [d for d in FULLSTACK_BACKEND_DIRS if d not in FRONTEND_DIRS]:
+        for name in ["package.json", "requirements.txt", "pyproject.toml"] + VITE_CONFIGS:
+            p = _join(d, name)
+            if p in s and p not in want:
+                want.append(p)
+    return want[:24]
+
+
+def frontend_source_files(frontend_dir: str, paths: List[str]) -> List[str]:
+    """Round two: a capped set of the frontend's source and env files, shallow files first."""
+    prefix = "" if frontend_dir == "." else frontend_dir + "/"
+    src = sorted((p for p in paths if p.startswith(prefix + "src/") and p.endswith(SOURCE_EXT)
+                  and not re.search(r"\.(test|spec|stories)\.|\.d\.ts$", p)),
+                 key=lambda p: (p.count("/"), p))[:MAX_SOURCE_FILES]
+    env = [prefix + n for n in ENV_FILE_NAMES if prefix + n in paths][:MAX_ENV_FILES]
+    return src + env
+
+
+@dataclass
+class Wiring:
+    kind: str                                   # env | localhost | proxy | unsupported | none
+    env_names: List[str] = field(default_factory=list)
+    localhost_urls: List[str] = field(default_factory=list)
+    unsupported_names: List[str] = field(default_factory=list)
+
+
+def classify_wiring(frontend_dir: str, frontend_stack: str, paths: List[str], files: Dict[str, str]) -> Wiring:
+    """How does this frontend find its API? Only VITE_* (Vite) and REACT_APP_* (CRA) can be set at build time."""
+    prefix = "" if frontend_dir == "." else frontend_dir + "/"
+    own = {p: t for p, t in files.items() if p.startswith(prefix)}
+    # the app's own code only: vite.config.js ends in .js too, and its proxy target is not an API call
+    src_text = "\n".join(t for p, t in own.items() if p.startswith(prefix + "src/") and p.endswith(SOURCE_EXT))
+    wanted_prefix = "VITE_" if frontend_stack == "react-vite" else "REACT_APP_"
+
+    seen = set(_ENV_ACCESS.findall(src_text)) | set(_ENV_BRACKET.findall(src_text))
+    for p, t in own.items():
+        if p.rsplit("/", 1)[-1] in ENV_FILE_NAMES:
+            seen |= set(_ENV_LINE.findall(t))
+    api_names = sorted(n for n in seen if API_WORD.search(n) and n not in VITE_BUILTIN)
+    env_names = [n for n in api_names if n.startswith(wanted_prefix) and re.match(ENV_NAME_RE, n)]
+    unsupported = [n for n in api_names if n not in env_names]
+    localhost = sorted(set(_LOCALHOST.findall(src_text)))
+
+    if env_names:
+        return Wiring("env", env_names, localhost, unsupported)
+    if localhost:
+        return Wiring("localhost", [], localhost, unsupported)
+    cfg = "\n".join(own.get(_join(frontend_dir, c), "") for c in VITE_CONFIGS)
+    pkg_proxy = isinstance(_loads(own.get(_join(frontend_dir, "package.json"))).get("proxy"), str)
+    if (_PROXY_KEY.search(cfg) or pkg_proxy) and _RELATIVE_CALL.search(src_text):
+        return Wiring("proxy", [], [], unsupported)
+    if unsupported:
+        return Wiring("unsupported", [], [], unsupported)
+    return Wiring("none")
+
+
+def backend_has_cors(info: BackendInfo, backend_dir: str, files: Dict[str, str]) -> bool:
+    prefix = "" if backend_dir == "." else backend_dir + "/"
+    text = "\n".join(t for p, t in files.items() if p.startswith(prefix))
+    if info.runtime == "python":
+        reqs = "\n".join(t for p, t in files.items() if p.startswith(prefix) and
+                         p.rsplit("/", 1)[-1] in ("requirements.txt", "pyproject.toml"))
+        if any(has_dep(reqs, d) for d in _CORS_PY):
+            return True
+    return _CORS_SRC.search(text) is not None
+
+
+@dataclass
+class FullstackDetected:
+    frontend_dir: str
+    frontend_stack: str
+    backend_dir: str
+    backend: Detected                  # .info is None when the backend is recognised but cannot run
+
+
+def detect_fullstack(paths: List[str], files: Dict[str, str]) -> Optional[FullstackDetected]:
+    """A deployable React frontend and a supported backend in two different folders, else None."""
+    fe = next(((d, st) for d in FRONTEND_DIRS if (st := frontend_stack_of(d, paths, files))), None)
+    if fe is None:
+        return None
+    for d in FULLSTACK_BACKEND_DIRS:
+        if d == fe[0]:
+            continue
+        pkg_text = files.get(_join(d, "package.json"))
+        has_pkg = _join(d, "package.json") in set(paths)
+        if has_pkg and frontend_stack_of(d, paths, files):
+            continue  # that folder is itself a React app
+        hit = detect(d, paths, files, _loads(pkg_text), has_pkg)
+        if hit is not None:
+            return FullstackDetected(fe[0], fe[1], d, hit)
+    return None
+
+
+def fullstack_findings(fs: FullstackDetected, wiring: Wiring, app_cors: bool) -> List[Finding]:
+    fe_name = "Vite" if fs.frontend_stack == "react-vite" else "Create React App"
+    be_name = fs.backend.info.framework.capitalize() if fs.backend.info else "backend"
+    if fs.backend.info is None:
+        # The backend half is what blocks; say so, so nobody goes hunting in a frontend that is fine.
+        blockers = [f for f in fs.backend.findings if f.severity == "block"]
+        out = [_finding("fullstack-backend-blocked", "block", "The backend is what blocks this repo",
+                        "The frontend in %s looked fine (React with %s). The backend in %s is the blocker: %s"
+                        % (fs.frontend_dir, fe_name, fs.backend_dir,
+                           blockers[0].detail if blockers else "it could not be started."),
+                        blockers[0].fix if blockers else None, blockers[0].file if blockers else None)]
+        return out
+    out = [_finding("fullstack-detected", "ok", "Full-stack app",
+                    "React (%s) frontend in %s and %s backend in %s. The backend rises first, then the "
+                    "frontend is built pointed at it." % (fe_name, fs.frontend_dir, be_name, fs.backend_dir),
+                    None, None)]
+    if wiring.kind == "env":
+        out.append(_finding("fullstack-wiring", "ok", "Frontend reads its API address from env",
+                            "The frontend reads %s; we set it to the backend's address when we build."
+                            % ", ".join(wiring.env_names), None, None))
+    elif wiring.kind == "localhost":
+        out.append(_finding("fullstack-wiring", "ok", "Frontend calls localhost",
+                            "The frontend calls %s; in the built files we replace that with the backend's live "
+                            "address." % ", ".join(wiring.localhost_urls), None, None))
+    elif wiring.kind == "proxy":
+        var = "VITE_API_URL" if fs.frontend_stack == "react-vite" else "REACT_APP_API_URL"
+        out.append(_finding("fullstack-wiring", "warn", "Frontend relies on a dev proxy",
+                            "The frontend calls relative paths like /api and relies on the dev server's proxy, "
+                            "which does not exist on the live site, so its API calls will fail.",
+                            "Read the API URL from %s instead of the dev proxy." % var, None))
+    elif wiring.kind == "unsupported":
+        out.append(_finding("fullstack-wiring", "warn", "API address variable we cannot set",
+                            "The frontend reads %s, but only %s variables reach a %s build, so we cannot wire the "
+                            "API address and cannot verify the wiring. The frontend's API calls may not reach the "
+                            "server." % (", ".join(wiring.unsupported_names),
+                                         "VITE_*" if fs.frontend_stack == "react-vite" else "REACT_APP_*", fe_name),
+                            "Rename it to %s_API_URL." % ("VITE" if fs.frontend_stack == "react-vite" else "REACT_APP"),
+                            None))
+    else:
+        out.append(_finding("fullstack-wiring", "warn", "No API address found in the frontend",
+                            "We could not find where the frontend reads its API address, so it may not reach the "
+                            "backend.", "Read the API URL from %s." % (
+                                "VITE_API_URL" if fs.frontend_stack == "react-vite" else "REACT_APP_API_URL"), None))
+    if app_cors:
+        out.append(_finding("backend-cors", "ok", "Backend sets its own CORS",
+                            "The backend configures CORS itself, so we leave its headers alone.", None, None))
+    return out

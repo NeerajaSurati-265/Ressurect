@@ -35,6 +35,7 @@ class Settings:
     codebuild_apps_project: str = "resurrect-build-apps"
     ecr_apps_uri: str = ""
     app_exec_role_arn: str = ""
+    fullstack_enabled: bool = False   # B5: only has effect together with backends_enabled
 
 
 def settings() -> Settings:
@@ -62,6 +63,8 @@ def settings() -> Settings:
         codebuild_apps_project=e("CODEBUILD_APPS_PROJECT", "resurrect-build-apps"),
         ecr_apps_uri=e("ECR_APPS_URI", ""),
         app_exec_role_arn=e("APP_EXEC_ROLE_ARN", ""),
+        fullstack_enabled=(e("FULLSTACK_ENABLED", "false").lower() == "true"
+                           and e("BACKENDS_ENABLED", "false").lower() == "true"),
     )
 
 

@@ -52,15 +52,15 @@ def _is_conditional_failure(exc: Exception) -> bool:
     return (getattr(exc, "response", None) or {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException"
 
 
-def _bump(pk: str, limit: int, ttl: int) -> bool:
-    """Atomically add one to the counter at pk. False if it is already at the limit."""
+def _bump(pk: str, limit: int, ttl: int, n: int = 1) -> bool:
+    """Atomically add n to the counter at pk. False if that would pass the limit (nothing is added)."""
     try:
         _table().update_item(
             Key={"pk": pk},
             UpdateExpression="ADD #count :one SET #ttl = :ttl",
             ConditionExpression="attribute_not_exists(#count) OR #count < :limit",
             ExpressionAttributeNames={"#count": "count", "#ttl": "ttl"},
-            ExpressionAttributeValues={":one": 1, ":ttl": ttl, ":limit": limit},
+            ExpressionAttributeValues={":one": n, ":ttl": ttl, ":limit": limit - n + 1},
         )
         return True
     except Exception as exc:
@@ -91,14 +91,35 @@ def check(ip: Optional[str], admin_header: Optional[str]) -> None:
                            retry_after_s=retry)
 
 
-def reserve_build(admin_header: Optional[str]) -> None:
-    """Daily build quota. Call right before a build starts, never for cannot_rise. Admin skips it."""
+def reserve_build(admin_header: Optional[str], count: int = 1) -> Optional[str]:
+    """Daily build quota. Call right before a build starts, never for cannot_rise. Admin skips it.
+
+    A full-stack repo reserves its two builds at once (count=2, all or nothing). Returns the counter key
+    that was charged (so an unused slot can be given back), or None when nothing was charged (admin)."""
     if is_admin(admin_header):
-        return
+        return None
     now = _now()
     pk = "quota#%s" % now.strftime("%Y-%m-%d")
-    if not _bump(pk, config.settings().daily_build_quota, int((now + timedelta(days=2)).timestamp())):
+    if not _bump(pk, config.settings().daily_build_quota, int((now + timedelta(days=2)).timestamp()), count):
         retry = max(1, int((_next_midnight(now) - now).total_seconds()))
         raise ApiException("quota_exhausted",
                            "The graveyard is full for today. Please come back tomorrow.",
                            retry_after_s=retry)
+    return pk
+
+
+def release_build(pk: Optional[str], n: int = 1) -> None:
+    """Give back n unused slots of the counter reserve_build charged. Never raises."""
+    if not pk:
+        return
+    try:
+        _table().update_item(
+            Key={"pk": pk},
+            UpdateExpression="ADD #count :minus",
+            ConditionExpression="attribute_exists(#count) AND #count >= :n",
+            ExpressionAttributeNames={"#count": "count"},
+            ExpressionAttributeValues={":minus": -n, ":n": n},
+        )
+    except Exception as exc:
+        if not _is_conditional_failure(exc):
+            logger.exception("could not release %d quota slot(s) on %s", n, pk)

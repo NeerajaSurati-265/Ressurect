@@ -26,12 +26,6 @@ def test_yaml_parses_and_bash_syntax_is_valid():
         os.unlink(f.name)
 
 
-def test_static_buildspec_untouched():
-    """The static/React buildspec must not change in B4."""
-    out = subprocess.run(["git", "diff", "--quiet", "--", "buildspec/static-react.yml"], cwd=ROOT)
-    assert out.returncode == 0
-
-
 BASE = dict(RES_ID="r-abc123", RUNTIME="python", APP_PORT="8000", ENTRY="uvicorn main:app --host 0.0.0.0 --port 8000",
             APP_DIR=".", REPO_URL="https://github.com/o/n")
 

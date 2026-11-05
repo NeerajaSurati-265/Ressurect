@@ -122,6 +122,7 @@ resource "aws_lambda_function" "api" {
       SCHEDULER_ROLE_ARN     = aws_iam_role.scheduler.arn
       SCHEDULE_GROUP         = local.schedule_group
       BACKENDS_ENABLED       = var.backends_enabled
+      FULLSTACK_ENABLED      = var.fullstack_enabled
       MAX_LIVE_BACKENDS      = tostring(var.max_live_backends)
       ECR_APPS_URI           = aws_ecr_repository.apps.repository_url
       APP_EXEC_ROLE_ARN      = aws_iam_role.app_exec.arn

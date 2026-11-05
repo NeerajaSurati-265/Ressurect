@@ -22,6 +22,12 @@ variable "backends_enabled" {
   default     = "false"
 }
 
+variable "fullstack_enabled" {
+  description = "B5: React frontend + backend from one repo raised as one resurrection. Only has effect when backends_enabled is \"true\"."
+  type        = string
+  default     = "false"
+}
+
 variable "max_live_backends" {
   description = "How many rz-* backend functions may be alive at once."
   type        = number

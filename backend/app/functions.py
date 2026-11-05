@@ -50,8 +50,15 @@ def _is(exc: Exception, *codes: str) -> bool:
     return _code(exc) in codes
 
 
-def create(res_id: str, info: Optional[BackendInfo] = None) -> str:
-    """Create the function, its public URL and permissions. Returns the function URL."""
+def cors_config(origin: str) -> dict:
+    """The Function URL's own CORS setting: only the graves origin may call the API from a browser."""
+    return {"AllowOrigins": [origin], "AllowMethods": ["*"], "AllowHeaders": ["*"], "AllowCredentials": False}
+
+
+def create(res_id: str, info: Optional[BackendInfo] = None, cors_origin: Optional[str] = None) -> str:
+    """Create the function, its public URL and permissions. Returns the function URL.
+
+    cors_origin (full-stack only): set the URL's own Cors to allow that origin. None = no Cors, as in B4."""
     s = config.settings()
     lam, logs = config.client("lambda"), config.client("logs")
     fname = name(res_id)
@@ -76,7 +83,8 @@ def create(res_id: str, info: Optional[BackendInfo] = None) -> str:
             raise  # an existing function means an earlier poll got here first: carry on
 
     try:
-        url = lam.create_function_url_config(FunctionName=fname, AuthType="NONE")["FunctionUrl"]
+        kw = {"Cors": cors_config(cors_origin)} if cors_origin else {}
+        url = lam.create_function_url_config(FunctionName=fname, AuthType="NONE", **kw)["FunctionUrl"]
     except Exception as exc:
         if not _is(exc, "ResourceConflictException"):
             raise

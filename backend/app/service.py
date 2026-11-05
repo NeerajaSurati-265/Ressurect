@@ -49,15 +49,22 @@ def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult,
     r.stack = result.autopsy.stack
     rec.package_json = result.package_json
     rec.backend = result.backend
+    rec.fullstack = result.fullstack
     rec.function_url = None
     rec.function_created_at = None
+    rec.fe_build_id = rec.fe_log_stream = rec.fe_pulse_offset = rec.fs_stage = rec.quota_slot_pk = None
     if rec.backend is not None and autopsy_mod.is_deployable(r.autopsy, rec.backend):
         _enforce_live_cap(rec)  # over the cap: blocks the autopsy and drops the backend info
+        if rec.backend is None:
+            rec.fullstack = None
     r.deployable = autopsy_mod.is_deployable(r.autopsy, rec.backend)
     if not r.deployable:
         r.status = "cannot_rise"
         r.phase_message = "Cannot rise yet"
         rec.build_id = None
+        return
+    if rec.fullstack is not None:
+        _start_fullstack(rec, admin_header)
         return
     limits.reserve_build(admin_header)  # counts only builds that really start
     if rec.backend is not None:
@@ -65,6 +72,21 @@ def _apply_autopsy(rec: StoredRecord, result: autopsy_mod.AutopsyResult,
                                     backend=rec.backend)
     else:
         rec.build_id = builds.start(r.id, r.repo.url, r.stack, r.autopsy.app_dir, r.repo.commit_sha)
+    r.status = "summoning"
+    r.phase_message = "Summoning"
+
+
+def _start_fullstack(rec: StoredRecord, admin_header: Optional[str]) -> None:
+    """Both builds are reserved up front (all or nothing); the backend build starts first, in its own folder."""
+    r, fs = rec.res, rec.fullstack
+    pk = limits.reserve_build(admin_header, 2)
+    try:
+        rec.build_id = builds.start(r.id, r.repo.url, r.stack, fs.backend_dir, r.repo.commit_sha, backend=fs.backend)
+    except Exception:
+        limits.release_build(pk, 2)
+        raise
+    rec.fs_stage = "backend"
+    rec.quota_slot_pk = pk  # the frontend's slot, handed back if the backend half fails first
     r.status = "summoning"
     r.phase_message = "Summoning"
 
