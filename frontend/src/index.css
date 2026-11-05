@@ -91,7 +91,7 @@
     drop-shadow(0 2px 0 #4f2404)
     drop-shadow(0 3px 0 #331702)
     drop-shadow(0 8px 10px rgba(0, 0, 0, 0.65))
-    drop-shadow(0 0 22px rgba(255, 138, 31, 0.32));
+    drop-shadow(0 0 14px rgba(255, 138, 31, 0.12));
   animation: wordmark-flicker 7s infinite;
 }
 .anim-ember { animation: ember-flicker 2.3s infinite; }
@@ -131,6 +131,101 @@
 @media (max-width: 639.98px) {
   .ground-box { height: 46vh; }
 }
+/* Layers whose SVG repaints (flames, wisps, swaying limbs) get their own compositor layer so
+   they never re-rasterise the filtered static art painted beside them. */
+.fx-own-layer { will-change: transform; }
+
+/* ---------- realism pass: flames, limbs, god rays ---------- */
+@keyframes flame-lick {
+  0%, 100% { transform: scale(1, 1) skewX(0deg); }
+  23% { transform: scale(0.93, 1.07) skewX(-4deg); }
+  41% { transform: scale(1.04, 0.95) skewX(2.5deg); }
+  64% { transform: scale(0.97, 1.04) skewX(-1.5deg); }
+  82% { transform: scale(1.02, 0.97) skewX(3deg); }
+}
+@keyframes flame-lick-b {
+  0%, 100% { transform: scale(1, 1) skewX(0deg) translateX(0); }
+  30% { transform: scale(0.95, 1.08) skewX(3deg) translateX(0.3px); }
+  58% { transform: scale(1.05, 0.93) skewX(-3deg) translateX(-0.3px); }
+}
+@keyframes flame-core {
+  0%, 100% { transform: scale(1, 1); opacity: 1; }
+  35% { transform: scale(0.9, 1.1); opacity: 0.9; }
+  70% { transform: scale(1.06, 0.92); opacity: 1; }
+}
+@keyframes flame-flicker {
+  0%, 100% { opacity: 0.92; }
+  11% { opacity: 0.74; }
+  19% { opacity: 1; }
+  36% { opacity: 0.82; }
+  51% { opacity: 0.97; }
+  63% { opacity: 0.7; }
+  80% { opacity: 0.93; }
+}
+.flame-lick {
+  animation: flame-lick 1.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.flame-flicker { animation: flame-flicker 2.4s linear infinite; }
+
+/* Outer limbs: a slow sine sway, stepped (~6 paints/s) because SVG child transforms repaint. */
+@keyframes branch-sway {
+  0%, 100% { transform: rotate(calc(var(--sw, 1) * -1deg)); }
+  12.5%, 87.5% { transform: rotate(calc(var(--sw, 1) * -0.71deg)); }
+  25%, 75% { transform: rotate(0deg); }
+  37.5%, 62.5% { transform: rotate(calc(var(--sw, 1) * 0.71deg)); }
+  50% { transform: rotate(calc(var(--sw, 1) * 1deg)); }
+}
+.branch-sway { animation: branch-sway 8s steps(3) infinite; }
+
+.god-ray {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 50%;
+  transform: rotate(var(--ray-a, 30deg));
+  opacity: var(--ray-o, 0.08);
+  animation: god-ray 25s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes god-ray {
+  from { opacity: calc(var(--ray-o, 0.08) * 0.5); transform: rotate(calc(var(--ray-a, 30deg) - 1.6deg)); }
+  to { opacity: var(--ray-o, 0.08); transform: rotate(calc(var(--ray-a, 30deg) + 1.6deg)); }
+}
+
+/* the Risen spectral shaft: faint motes drifting up inside it */
+@keyframes mote-rise {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 0.8; }
+  100% { transform: translateY(-150px); opacity: 0; }
+}
+.shaft-mote { animation: mote-rise 5s linear infinite; }
+
+/* the ghost: mist moving inside the form and a hem that trails in a draught */
+@keyframes ghost-mist {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(6px, -8px); }
+  66% { transform: translate(-5px, 5px); }
+}
+.ghost-mist { animation: ghost-mist 9s ease-in-out infinite; }
+@keyframes ghost-hem {
+  0%, 100% { transform: skewX(0deg) scaleY(1); }
+  30% { transform: skewX(4deg) scaleY(1.03); }
+  65% { transform: skewX(-3deg) scaleY(0.98); }
+}
+.ghost-hem {
+  animation: ghost-hem 6.5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* static and dimmer */
+  .god-ray { opacity: calc(var(--ray-o, 0.08) * 0.6); }
+}
+
 @keyframes lantern-sway {
   0%, 100% { transform: rotate(-2.5deg); }
   50% { transform: rotate(2.5deg); }

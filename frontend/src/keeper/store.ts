@@ -43,7 +43,10 @@ export type KeeperMood =
 export interface KeeperDirective {
   mood: KeeperMood
   anchor: KeeperAnchor | null
-  /** A few plain words shown faintly beside the Keeper. Decorative (aria-hidden). */
+  /**
+   * @deprecated No-op: renders nothing and reserves no space. The Keeper now speaks through the
+   * dialogue director (src/keeper/dialogue.ts) and the speech scroll. Callers are being removed.
+   */
   whisper?: string
   /** data-keeper-focus="<name>" element the lantern tilts toward (e.g. the Visit button). */
   focus?: string

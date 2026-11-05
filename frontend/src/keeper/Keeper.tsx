@@ -1,24 +1,31 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { emit } from '../fx/particles'
+import { Flame } from '../scene/Flame'
+import { gate } from '../gate/gateState'
 import { intro } from '../scene/intro'
+import { loadAudio, whoosh } from './audioBridge'
+import { startDirector, subscribeSpeech } from './dialogue'
 import { keeperSignal } from './keeperSignal'
 import {
   collectObstacles,
   collides,
+  figureRect,
   fits,
   RATIO,
   rectOf,
-  reserved,
+  reservedRects,
+  scrollRect,
+  scrollSpot,
   solve,
   solveAnywhere,
   VB,
-  WHISPER_H,
-  WHISPER_W,
   type Placement,
   type Rect,
   type SolveOpts,
 } from './placement'
+import { SpeechScroll } from './SpeechScroll'
 import { getKeeper, subscribeKeeper, subscribeKeeperEvents, type KeeperDirective, type KeeperMood } from './store'
+import { initVoice } from './voice'
 
 /**
  * The Keeper: an original hooded lantern-bearer who travels the page beside the ritual.
@@ -121,16 +128,29 @@ function useMedia(q: string) {
   return on
 }
 
+/** Minimum time between two flight whooshes. */
+const WHOOSH_GAP_MS = 1200
+
 export function KeeperLayer() {
   const wide = useMedia('(min-width: 640px)')
-  if (!wide) return null
-  return <KeeperCompanion />
+  const scrollPos = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    void loadAudio()
+    initVoice()
+    startDirector()
+  }, [])
+  return (
+    <>
+      {wide && <KeeperCompanion scrollPos={scrollPos} />}
+      {/* the scroll lives outside the figure so it can dock on phones, where the figure is hidden */}
+      <SpeechScroll posRef={scrollPos} docked={!wide} />
+    </>
+  )
 }
 
-function KeeperCompanion() {
+function KeeperCompanion({ scrollPos }: { scrollPos: RefObject<HTMLDivElement | null> }) {
   const reduced = useMedia('(prefers-reduced-motion: reduce)')
   const wrap = useRef<HTMLDivElement>(null)
-  const whisperEl = useRef<HTMLDivElement>(null)
   const ambient = useRef<HTMLDivElement>(null)
   const pool = useRef<HTMLDivElement>(null)
   const g = {
@@ -144,13 +164,13 @@ function KeeperCompanion() {
     eyes: useRef<SVGGElement>(null),
     wash: useRef<SVGGElement>(null),
   }
-  const [whisper, setWhisper] = useState<string | null>(null)
   const [hover, setHover] = useState(false)
   const hoverRef = useRef(false)
   hoverRef.current = hover
 
   useEffect(() => {
     const root = document.documentElement
+    const scrollEl = scrollPos.current
     let dir: KeeperDirective = getKeeper()
     let raf = 0
     let last = performance.now()
@@ -182,10 +202,17 @@ function KeeperCompanion() {
     let opacity = 0
     let hiddenWanted = true
     let lastVisible = false
-    let introDone = !intro.playing()
+    // Behind the entry gate the Keeper appears as soon as the fog fully covers the screen, so it
+    // already stands where the lantern burns the opening; otherwise it waits for the intro.
+    let introDone = gate.get() === 'off' ? !intro.playing() : !gate.isOpen()
     let lastActivity = last
     let lastVars = 0
     let lastVarPos = { x: -1, y: -1, l: -1 }
+    let lastWhoosh = -Infinity
+    let speaking = false
+    /** where the scroll goes when the figure's spot has no room for it */
+    let freeSpot: Rect | null = null
+    let scrollState = ''
 
     const pose = { ...POSE[dir.mood], arm: 0 }
     let wake = 0
@@ -194,7 +221,10 @@ function KeeperCompanion() {
     let focusVec: V | null = null
 
     const offIntro = intro.subscribe(() => {
-      introDone = true
+      if (!intro.playing() || !gate.isOpen()) introDone = true
+    })
+    const offGate = gate.subscribe(() => {
+      if (!gate.isOpen()) introDone = true
     })
 
     const vw = () => window.innerWidth
@@ -217,14 +247,15 @@ function KeeperCompanion() {
         minSize: s.min,
         gap: 24 + POSE[dir.mood].gap,
         ground: s.ground,
-        whisper: !!dir.whisper,
+        scroll: true,
         prevSide: prev?.side,
       }
-      return solve(o) ?? solveAnywhere({ ...o, ground: false, size: Math.min(o.size, 260), minSize: 130 })
+      const any: SolveOpts = { ...o, ground: false, size: Math.min(o.size, 260), minSize: 130 }
+      // with room for the scroll first; without it the scroll finds its own clear spot or docks
+      return solve(o) ?? solve({ ...o, scroll: false }) ?? solveAnywhere(any) ?? solveAnywhere({ ...any, scroll: false })
     }
 
-    const stillFits = (p: Placement) =>
-      fits(p, { vw: vw(), vh: vh(), anchor: anchorRect!, obstacles, size: 0, minSize: 0, gap: 0, ground: false, whisper: !!dir.whisper })
+    const stillFits = (p: Placement) => fits(p, { vw: vw(), vh: vh(), obstacles })
 
     /** Choose the arc's bulge: up-and-over, outward, or flat, whichever crosses the least content. */
     const pickBulge = (from: V & { h: number }, to: Placement): V => {
@@ -244,7 +275,7 @@ function KeeperCompanion() {
           const u = i / 12
           const p = bez(from, b, to, u)
           const h = lerp(from.h, to.h, u)
-          if (collides(reserved(p.x, p.y, h, false), obstacles)) hits++
+          if (collides(figureRect(p.x, p.y, h), obstacles)) hits++
           if (p.y < -h * 0.3 || p.y > vh()) hits += 0.5
         }
         // prefer arcs that lift (drifting up and over) when they tie
@@ -273,6 +304,26 @@ function KeeperCompanion() {
         t0: now,
         dur: dur ?? 1200 + 600 * Math.min(1, dist / 900),
       }
+      if (opacity > 0.3 && now - lastWhoosh > WHOOSH_GAP_MS) {
+        lastWhoosh = now
+        whoosh()
+      }
+    }
+
+    const anchoredScroll = () => placed && introDone && !hiddenWanted && !!target?.scroll
+
+    /** When a line is playing and the figure's spot has no scroll room, find the scroll a clear spot. */
+    const updateFreeSpot = () => {
+      if (!speaking || anchoredScroll()) {
+        freeSpot = null
+        return
+      }
+      const t: Placement | null = target
+      const obs = placed && !hiddenWanted && t ? [...obstacles, figureRect(t.x, t.y, t.h)] : obstacles
+      const near = t
+        ? { x: t.x + (t.h * RATIO) / 2, y: t.y + t.h * 0.5 }
+        : { x: vw() / 2, y: vh() * 0.75 }
+      freeSpot = scrollSpot(vw(), vh(), obs, near, freeSpot)
     }
 
     const measure = (now: number) => {
@@ -299,7 +350,7 @@ function KeeperCompanion() {
         const carried: Placement = {
           ...target,
           x: a.x + rel.dx,
-          y: clamp(a.y + rel.dy, 22, H - 22 - target.h - (dir.whisper ? WHISPER_H : 0)),
+          y: clamp(a.y + rel.dy, 22, H - 22 - target.h),
         }
         if (stillFits(carried)) {
           target = carried
@@ -335,30 +386,22 @@ function KeeperCompanion() {
 
     const stillFitsLoose = () => {
       if (!target) return false
-      const r = reserved(target.x, target.y, target.h, !!dir.whisper)
-      return !collides(r, obstacles)
+      return !reservedRects(target, vw()).some((r) => collides(r, obstacles))
     }
 
     // ---- directive changes ----
-    let whisperTimer = 0
+    // (`whisper` is deprecated and ignored: the speech scroll and the dialogue director speak now)
     const onDirective = (d: KeeperDirective) => {
       const prevMood = dir.mood
+      // a focus-only change (e.g. "look at the command box") re-aims the lantern without moving
+      const moved = d.mood !== dir.mood || d.anchor !== dir.anchor
       dir = d
+      if (!moved) return
       force = true
       dirty = true
       missingSince = 0
       if (wander) wander = null
-      const now = performance.now()
-      lastActivity = now
-      window.clearTimeout(whisperTimer)
-      setWhisper(null)
-      if (d.whisper) {
-        const text = d.whisper
-        whisperTimer = window.setTimeout(() => {
-          setWhisper(text)
-          whisperTimer = window.setTimeout(() => setWhisper(null), 6500)
-        }, 1500)
-      }
+      lastActivity = performance.now()
       if (reduced) return
       if (d.mood === 'recoil' && prevMood !== 'recoil') {
         omega += (Math.random() < 0.5 ? -1 : 1) * 170
@@ -367,13 +410,13 @@ function KeeperCompanion() {
       if (d.mood === 'triumph') {
         window.setTimeout(() => {
           const l = lanternScreen()
-          if (l) emit('ember', { x: l.x, y: l.y, count: 26, spread: 16 })
+          if (l) emit('ember', { x: l.x, y: l.y, count: 16, spread: 30 })
         }, 900)
       }
       if (d.mood === 'rising') {
         window.setTimeout(() => {
           const l = lanternScreen()
-          if (l) emit('ember', { x: l.x, y: l.y, count: 14, spread: 10 })
+          if (l) emit('ember', { x: l.x, y: l.y, count: 10, spread: 22 })
         }, 1300)
       }
     }
@@ -381,6 +424,10 @@ function KeeperCompanion() {
     const offEv = subscribeKeeperEvents((e) => {
       if (e === 'line') flare = Math.max(flare, 0.75)
       else beat = 1
+    })
+    const offSpeech = subscribeSpeech((l) => {
+      speaking = !!l
+      dirty = true
     })
     const offSig = keeperSignal.subscribe(({ focus, flare: f }) => {
       wake = focus ? 1 : 0
@@ -434,7 +481,7 @@ function KeeperCompanion() {
         const x = lerp(target.x, far.x, u)
         const y = lerp(target.y, far.y, u) - Math.sin(u * Math.PI) * 18
         const h = lerp(target.h, far.h, Math.min(1, u * 2.2))
-        if (collides(reserved(x, y, h, false), obstacles) || y + h > H) {
+        if (collides(figureRect(x, y, h), obstacles) || y + h > H) {
           lastActivity = now
           return
         }
@@ -473,7 +520,10 @@ function KeeperCompanion() {
       last = now
       const t = (now - t0) / 1000
 
-      if (dirty || now - lastMeasure > 300) measure(now)
+      if (dirty || now - lastMeasure > 300) {
+        measure(now)
+        updateFreeSpot()
+      }
 
       const H = vh()
 
@@ -546,9 +596,11 @@ function KeeperCompanion() {
       const hoverK = hoverRef.current ? 1 : 0
       let armTarget = base.lift * 34
       focusVec = null
-      if (base.aim && placed) {
+      // a focus on the directive wins over the mood's own aim (the dialogue points at the command box)
+      const aim = dir.focus && !wander ? 'focus' : base.aim
+      if (aim && placed) {
         const el =
-          base.aim === 'anchor'
+          aim === 'anchor'
             ? dir.anchor && document.querySelector(`[data-keeper-anchor="${dir.anchor}"]`)
             : dir.focus && document.querySelector(`[data-keeper-focus="${dir.focus}"]`)
         if (el) {
@@ -569,7 +621,7 @@ function KeeperCompanion() {
       pose.lean = approach(pose.lean, base.lean + clamp(lvx * 0.006, -7, 7) + hoverK * 3, rate, dt)
       pose.bow = approach(pose.bow, base.bow - hoverK * 3, rate, dt)
       pose.glow = approach(pose.glow, (wander ? 0.75 : base.glow) + wake * 0.25, 3, dt)
-      pose.eyes = approach(pose.eyes, Math.min(1, base.eyes + wake * 0.4 + hoverK * 0.35), 4, dt)
+      pose.eyes = approach(pose.eyes, Math.min(1, base.eyes + wake * 0.4 + hoverK * 0.35 + (speaking ? 0.15 : 0)), 4, dt)
       flare *= Math.exp(-dt * 4.5)
       beat *= Math.exp(-dt * 7)
 
@@ -603,7 +655,7 @@ function KeeperCompanion() {
 
       // ---- visibility: dissolve when no clear spot, or while crossing over content ----
       let visWanted = !hiddenWanted && placed && introDone && !!target
-      if (visWanted && flight && collides(reserved(pos.x, pos.y, pos.h, false), obstacles)) visWanted = false
+      if (visWanted && flight && collides(figureRect(pos.x, pos.y, pos.h), obstacles)) visWanted = false
       if (reduced && dest && (Math.abs(dest.x - pos.x) > 2 || Math.abs(dest.y - pos.y) > 2)) visWanted = false
       const visTarget = visWanted ? (wander ? 0.6 : 1) : 0
       opacity = approach(opacity, visTarget, reduced ? 9 : visTarget > opacity ? 3.2 : 5, dt)
@@ -675,21 +727,61 @@ function KeeperCompanion() {
           root.style.setProperty('--keeper-light', light.toFixed(2))
         }
       }
-      if (whisperEl.current) {
-        const w = BASE_W * s
-        whisperEl.current.style.transform = `translate3d(${(pos.x + w / 2 - WHISPER_W / 2).toFixed(1)}px, ${(pos.y + pos.h + 2 + floatY * s * K * 0.6).toFixed(1)}px, 0)`
-        whisperEl.current.style.opacity = opacity.toFixed(3)
+      // ---- the speech scroll: beside the figure, in a clear spot of its own, or docked ----
+      const sp = scrollEl
+      if (sp) {
+        let mode = 'docked'
+        let side = 'right'
+        let at = 'below'
+        let r: Rect | null = null
+        if (anchoredScroll() && target?.scroll) {
+          mode = 'anchored'
+          side = target.side
+          at = target.scroll
+          r = scrollRect({ x: pos.x, y: pos.y, h: pos.h, side: target.side }, target.scroll, vw())
+        } else if (freeSpot) {
+          mode = 'free'
+          r = freeSpot
+          side = L.x < r.x + r.w / 2 ? 'right' : 'left' // ember edge faces the lantern
+        }
+        // integration guard: never draw the scroll over page text (mid-flight, stale spot, page reflow).
+        // A hidden (docked) line keeps typing on its timers, so the queue and the voice carry on.
+        if (r && collides(r, obstacles)) {
+          mode = 'docked'
+          r = null
+        }
+        const state = `${mode}|${side}|${at}`
+        if (state !== scrollState) {
+          scrollState = state
+          sp.dataset.mode = mode
+          sp.dataset.side = side
+          sp.dataset.at = at
+        }
+        if (r) {
+          const fy = mode === 'anchored' ? floatY * s * K * 0.6 : 0
+          sp.style.transform = `translate3d(${r.x.toFixed(1)}px, ${(r.y + fy).toFixed(1)}px, 0)`
+          sp.style.opacity = mode === 'anchored' ? opacity.toFixed(3) : '1'
+        }
       }
     }
     raf = requestAnimationFrame(step)
 
     return () => {
       cancelAnimationFrame(raf)
-      window.clearTimeout(whisperTimer)
       offIntro()
+      offGate()
       offDir()
       offEv()
+      offSpeech()
       offSig()
+      const sp = scrollEl
+      if (sp) {
+        delete sp.dataset.mode
+        delete sp.dataset.side
+        delete sp.dataset.at
+        sp.style.transform = ''
+        sp.style.opacity = ''
+      }
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('pointermove', onMove)
@@ -738,18 +830,6 @@ function KeeperCompanion() {
             onEnter={() => setHover(true)}
             onLeave={() => setHover(false)}
           />
-        </div>
-        <div
-          ref={whisperEl}
-          className="absolute left-0 top-0 text-center font-type text-[13px] leading-snug text-mist"
-          style={{ width: WHISPER_W, opacity: 0, textShadow: '0 0 8px rgba(7,8,15,0.95), 0 0 2px rgba(7,8,15,1)' }}
-        >
-          <span
-            className="inline-block transition-[opacity,filter] duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
-            style={{ opacity: whisper ? 0.92 : 0, filter: whisper ? 'blur(0)' : 'blur(3px)' }}
-          >
-            {whisper}
-          </span>
         </div>
       </div>
     </>
@@ -879,8 +959,9 @@ function KeeperArt({ refs, onEnter, onLeave }: { refs: GRefs; onEnter: () => voi
               <circle cx="56" cy="248" r="3.5" fill="none" stroke="#2a2418" strokeWidth="1.6" />
               <path d="M44 260 L68 260 L63 251 L49 251 Z" fill="#1a150d" />
               <rect x="42" y="260" width="28" height="38" rx="3" fill="url(#lantern-glass)" className="anim-ember" />
+              {/* the per-frame beat/flare transform scales this group about the flame's base (56, 293) */}
               <g ref={refs.flame}>
-                <path d="M56 293 C 49 286, 50 278, 56 268 C 62 278, 63 286, 56 293 Z" fill="#fff1c9" className="anim-flame" />
+                <Flame x={56} y={293} scale={1.15} seed={13} />
               </g>
               <g stroke="#1a150d" strokeWidth="2.2" fill="none">
                 <rect x="42" y="260" width="28" height="38" rx="3" />

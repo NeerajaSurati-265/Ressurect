@@ -31,6 +31,11 @@ const FENCE = buildFence()
 export function IronFence() {
   return (
     <GroundBox>
+      {/* cold moon rim on the upper-left edge of the iron, softened by distance */}
+      <g fill="none" stroke="#b9c7e6" strokeOpacity="0.12" transform="translate(-1 -0.6)">
+        <path d={FENCE.pickets} strokeWidth="2" />
+        <path d={`M0 ${BASE - 50}H1600`} strokeWidth="2" />
+      </g>
       <g fill="#080a16" stroke="#080a16">
         <path d={FENCE.pickets} strokeWidth="3" fill="none" />
         <path d={FENCE.tips} strokeWidth="0.5" />

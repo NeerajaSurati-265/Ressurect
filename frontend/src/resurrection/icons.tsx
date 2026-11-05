@@ -1,6 +1,7 @@
 import { m, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_EXPO } from '../styles/motion'
 import type { Severity } from '@contracts/types'
+import { Flame, FlameLight } from '../scene/Flame'
 
 /**
  * Severity seals, engraved like a stamp pressed into the case file:
@@ -80,14 +81,9 @@ export function Candle({ className = '', delay = 0, flare = 0 }: { className?: s
         transition={{ duration: 0.7, ease: EASE_OUT_EXPO, times: [0, 0.25, 1] }}
         style={{ transformBox: 'fill-box', transformOrigin: '50% 80%' }}
       >
-      <circle cx="20" cy="22" r="20" fill="url(#candle-glow)" className="anim-ember" style={{ animationDelay: `${delay}s` }} />
-      <path
-        d="M20 8c4 5 5 9 0 15-5-6-4-10 0-15z"
-        fill="#ffb35c"
-        className="anim-flame"
-        style={{ animationDelay: `${delay}s` }}
-      />
-      <path d="M20 13c2 3 2.2 5 0 8-2.2-3-2-5 0-8z" fill="#fff1c9" className="anim-flame" style={{ animationDelay: `${delay}s` }} />
+      {/* layered flame from the realism pass; seed keeps the two candles out of step */}
+      <FlameLight x={20} y={16} rx={20} ry={18} seed={Math.round(Math.abs(delay) * 7) + 1} strength={0.35} />
+      <Flame x={20} y={23} scale={0.7} seed={Math.round(Math.abs(delay) * 7) + 1} />
       </m.g>
       <path d="M20 23v4" stroke="#2a2418" strokeWidth="1.4" />
       <path d="M12 28h16v54H12z" fill="url(#candle-wax)" />

@@ -67,11 +67,13 @@ export function Sky({ reduced, mobile }: { reduced: boolean; mobile: boolean }) 
 
   return (
     <div
-      className="absolute inset-0"
+      // extends 110 px above the layer so the 60 px descent on /r/:id never shows a bare seam
+      className="absolute inset-x-0 bottom-0"
       style={{
+        top: -110,
         // cold haze thickens toward the horizon; moonlight lifts the upper left
         background:
-          'radial-gradient(ellipse 70% 55% at 12% 8%, rgba(143,163,199,0.10), transparent 70%), radial-gradient(ellipse 120% 40% at 50% 78%, rgba(60,74,128,0.35), transparent 70%), linear-gradient(to bottom, var(--night-950) 0%, #0a0c1a 40%, #1a2042 100%)',
+          'radial-gradient(ellipse 70% 55% at 12% 8%, rgba(143,163,199,0.10), transparent 70%), radial-gradient(ellipse 120% 40% at 50% 78%, rgba(60,74,128,0.35), transparent 70%), linear-gradient(to bottom, #06070d 0%, #08091a 12%, #0b0d1d 40%, #1a2042 100%)',
       }}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />

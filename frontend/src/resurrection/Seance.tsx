@@ -6,6 +6,7 @@ import { DUR, EASE_OUT_EXPO } from '../styles/motion'
 import { Candle, Rune } from './icons'
 import { useTypewriter } from './useTypewriter'
 import { keeperEvent } from '../keeper/store'
+import { emit, type RitualPhase } from '../fx/events'
 
 const PHASES = ['Summoning', 'Cloning', 'Installing', 'Building', 'Uploading'] as const
 
@@ -27,6 +28,13 @@ function PhaseStrip({ status, message, reduced }: { status: ResurrectionStatus; 
   const idx = phaseIndex(status, message)
   if (idx != null && idx > furthest.current) furthest.current = idx
   const current = idx ?? furthest.current
+  const announced = useRef(-1)
+  useEffect(() => {
+    if (current < PHASES.length && current > announced.current) {
+      announced.current = current
+      emit('phase-change', { phase: PHASES[current].toLowerCase() as RitualPhase })
+    }
+  }, [current])
   return (
     <ol className="flex flex-wrap items-start justify-center gap-x-4 gap-y-3 sm:gap-x-6" aria-label="Ritual progress">
       {PHASES.map((p, i) => {
@@ -123,6 +131,7 @@ export function Seance({
       seen.current = lines.length
       return
     }
+    emit('log-lines', { count: lines.length - seen.current })
     seen.current = lines.length
     const now = performance.now()
     if (now - lastFlare.current >= 1000) {

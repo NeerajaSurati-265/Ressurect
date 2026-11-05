@@ -4,6 +4,7 @@ import { prefersReducedMotion } from '../styles/motion'
 import { ButtonLink } from '../components/Button'
 import { COPY } from '../lib/copy'
 import { useKeeperScript } from '../keeper/store'
+import { emit } from '../fx/events'
 
 function Lantern() {
   const still = prefersReducedMotion()
@@ -67,7 +68,10 @@ function MistyPath() {
 }
 
 export function NotFound() {
-  useKeeperScript('guiding', [{ mood: 'guiding', anchor: 'home-path', focus: 'home', whisper: 'This way home.' }])
+  useKeeperScript('guiding', [{ mood: 'guiding', anchor: 'home-path', focus: 'home' }])
+  useEffect(() => {
+    emit('lost')
+  }, [])
   useEffect(() => {
     document.title = 'Lost · Resurrect'
     return () => {

@@ -1,81 +1,88 @@
+import { useId } from 'react'
+import { Flame, FlameLight } from './Flame'
 import { GroundBox } from './Ground'
+import { PUMPKINS } from './layout'
 
-type PumpkinSpec = { x: number; y: number; size: number; dur: number; delay: number; mobile?: boolean; face: 0 | 1 | 2 }
-
-const PUMPKINS: PumpkinSpec[] = [
-  { x: 515, y: 484, size: 1.1, dur: 2.1, delay: 0, mobile: true, face: 0 },
-  { x: 872, y: 488, size: 0.85, dur: 2.9, delay: -1.2, mobile: true, face: 1 },
-  { x: 1235, y: 482, size: 1, dur: 2.5, delay: -0.6, face: 2 },
-]
-
-// Carved faces, drawn around (0, -22) on a ~48 wide pumpkin.
+// Small, restrained carvings around (0, -22) on a ~50 wide pumpkin.
 const FACES = [
-  'M-14 -30L-6 -30L-10 -38ZM6 -30L14 -30L10 -38ZM-2 -24L2 -24L0 -28ZM-15 -18L-10 -14L-6 -18L-2 -13L2 -18L6 -13L10 -18L15 -14L10 -9L-10 -9Z',
-  'M-15 -32L-5 -28L-13 -26ZM15 -32L5 -28L13 -26ZM-14 -18Q0 -6 14 -18L10 -16L7 -12L3 -16L0 -11L-3 -16L-7 -12L-10 -16Z',
-  'M-13 -34L-5 -27L-14 -27ZM13 -34L5 -27L14 -27ZM-3 -22L3 -22L0 -26ZM-16 -17L16 -17L13 -10L8 -13L4 -9L0 -13L-4 -9L-8 -13L-13 -10Z',
+  'M-11 -28L-5 -27.5L-8.5 -33ZM5 -27.5L11 -28L8.5 -33ZM-12 -16Q0 -9 12 -16Q9 -12.5 6 -13L4 -11L1 -12.6L-2 -11L-5 -13Q-9 -12.5 -12 -16Z',
+  'M-12 -27Q-8 -31.5 -4 -27Q-8 -25.4 -12 -27ZM4 -27Q8 -31.5 12 -27Q8 -25.4 4 -27ZM-11 -15Q0 -6.5 11 -15Q0 -11 -11 -15Z',
+  'M-11 -30L-4 -26L-11 -26ZM11 -30L4 -26L11 -26ZM-13 -16L13 -16Q11 -11 7 -11L5 -13.5L2 -11L-2 -11L-5 -13.5L-7 -11Q-11 -11 -13 -16Z',
 ]
 
-/** 2–3 jack-o'-lanterns whose carved faces glow and flicker in ember tones. */
+/**
+ * 2-3 carved pumpkins lit from inside by a real <Flame/> seen through the cuts. The same seed drives
+ * the warm spill on the soil and on nearby stones, so everything brightens and dims together.
+ * No SVG filters here: the flames animate, so this SVG repaints and must stay cheap.
+ */
 export function Pumpkins({ mobile }: { mobile: boolean }) {
+  const uid = `pk${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const list = PUMPKINS.filter((p) => !mobile || p.mobile)
   return (
-    <GroundBox>
+    <GroundBox className="fx-own-layer">
       <defs>
-        <radialGradient id="pk-body" cx="40%" cy="35%" r="75%">
-          <stop offset="0%" stopColor="#c25a12" />
-          <stop offset="60%" stopColor="#7a3309" />
-          <stop offset="100%" stopColor="#3a1604" />
+        <radialGradient id={`${uid}-lobe`} cx="34%" cy="30%" r="80%">
+          <stop offset="0%" stopColor="#c8651d" />
+          <stop offset="45%" stopColor="#8f3e0d" />
+          <stop offset="100%" stopColor="#331303" />
         </radialGradient>
-        <radialGradient id="pk-fire" cx="50%" cy="60%" r="60%">
-          <stop offset="0%" stopColor="#fff1c9" />
-          <stop offset="35%" stopColor="#ffb35c" />
-          <stop offset="80%" stopColor="#ff8a1f" />
-          <stop offset="100%" stopColor="#b84500" />
+        <radialGradient id={`${uid}-lobe-out`} cx="30%" cy="30%" r="85%">
+          <stop offset="0%" stopColor="#9c4710" />
+          <stop offset="55%" stopColor="#5e2607" />
+          <stop offset="100%" stopColor="#220c02" />
         </radialGradient>
-        {/* warm light pooling on the ground around each lantern */}
-        <radialGradient id="pk-pool">
-          <stop offset="0%" stopColor="#ff8a1f" stopOpacity="0.42" />
-          <stop offset="40%" stopColor="#ff8a1f" stopOpacity="0.14" />
-          <stop offset="100%" stopColor="#ff8a1f" stopOpacity="0" />
+        {/* the inside of the shell, lit by the candle */}
+        <radialGradient id={`${uid}-inside`} cx="50%" cy="80%" r="75%">
+          <stop offset="0%" stopColor="#ffd98a" />
+          <stop offset="45%" stopColor="#f28a24" />
+          <stop offset="100%" stopColor="#8a320a" />
         </radialGradient>
-        <radialGradient id="pk-glow">
-          <stop offset="0%" stopColor="#ff8a1f" stopOpacity="0.45" />
-          <stop offset="45%" stopColor="#ff8a1f" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="#ff8a1f" stopOpacity="0" />
-        </radialGradient>
+        {list.map((p) => (
+          <clipPath key={p.x} id={`${uid}-face${p.face}`}>
+            <path d={FACES[p.face]} />
+          </clipPath>
+        ))}
+        <clipPath id={`${uid}-body`}>
+          <ellipse cx="-17" cy="-19.5" rx="10" ry="18.5" />
+          <ellipse cx="17" cy="-19.5" rx="10" ry="18.5" />
+          <ellipse cx="0" cy="-21" rx="17" ry="21" />
+        </clipPath>
       </defs>
       {list.map((p) => (
-        <g key={p.x} transform={`translate(${p.x} ${p.y}) scale(${p.size})`}>
-          <ellipse
-            cx="0"
-            cy="0"
-            rx="150"
-            ry="20"
-            fill="url(#pk-pool)"
-            className="anim-ember"
-            style={{ animationDuration: `${p.dur * 1.6}s`, animationDelay: `${p.delay}s` }}
-          />
-          <circle
-            cx="0"
-            cy="-20"
-            r="70"
-            fill="url(#pk-glow)"
-            className="anim-ember"
-            style={{ animationDuration: `${p.dur * 1.3}s`, animationDelay: `${p.delay}s` }}
-          />
-          <ellipse cx="0" cy="1" rx="30" ry="5" fill="#05060b" />
-          <g fill="url(#pk-body)" stroke="#2a1003" strokeWidth="1">
-            <ellipse cx="-14" cy="-21" rx="14" ry="20" />
-            <ellipse cx="14" cy="-21" rx="14" ry="20" />
-            <ellipse cx="0" cy="-22" rx="16" ry="22" />
+        <g key={p.x}>
+          {/* warm light pooled on the soil and thrown up onto nearby stones */}
+          <FlameLight x={p.x} y={p.y} rx={150 * p.size} ry={20 * p.size} seed={p.seed} strength={0.34} />
+          <FlameLight x={p.x} y={p.y - 34 * p.size} rx={115 * p.size} ry={70 * p.size} seed={p.seed} strength={0.1} />
+          <g transform={`translate(${p.x} ${p.y}) scale(${p.size})`}>
+            <ellipse cx="3" cy="1" rx="28" ry="4.5" fill="#030409" opacity="0.85" />
+            <ellipse cx="-17" cy="-19.5" rx="10" ry="18.5" fill={`url(#${uid}-lobe-out)`} />
+            <ellipse cx="17" cy="-19.5" rx="10" ry="18.5" fill={`url(#${uid}-lobe-out)`} />
+            <ellipse cx="-9.5" cy="-20.5" rx="13" ry="20.5" fill={`url(#${uid}-lobe)`} />
+            <ellipse cx="9.5" cy="-20.5" rx="13" ry="20.5" fill={`url(#${uid}-lobe)`} opacity="0.92" />
+            <ellipse cx="0" cy="-21" rx="12" ry="21" fill={`url(#${uid}-lobe)`} />
+            {/* ribs between the lobes */}
+            <path
+              d="M-5.5 -41Q-9 -21 -5.5 -1M5.5 -41Q9 -21 5.5 -1M-13.5 -37.5Q-20 -20 -13.5 -2.5M13.5 -37.5Q20 -20 13.5 -2.5"
+              stroke="#260d02"
+              strokeOpacity="0.6"
+              strokeWidth="1.1"
+              fill="none"
+            />
+            {/* candlelight glowing through the thin shell around the cuts */}
+            <g clipPath={`url(#${uid}-body)`}>
+              <FlameLight x={0} y={-19} rx={20} ry={16} seed={p.seed} strength={0.38} color="#ff9a3a" />
+            </g>
+            {/* cold moon rim on the upper left */}
+            <path d="M-25 -22Q-24 -36 -10 -41.5" stroke="#c9d4ec" strokeOpacity="0.22" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+            <path d="M-1 -41Q-2.5 -49 2.5 -53.5L5.5 -51.5Q1.5 -48 2.6 -41.5Z" fill="#2a3317" />
+            {/* the carving: flesh wall, the lit inside, then the flame seen through the cut */}
+            <path d={FACES[p.face]} fill="#5c2106" transform="translate(0.6 0.7)" />
+            <g clipPath={`url(#${uid}-face${p.face})`}>
+              <rect x="-16" y="-36" width="32" height="30" fill={`url(#${uid}-inside)`} />
+              <Flame x={0} y={-8} scale={1.25} seed={p.seed} intensity={1.2} />
+            </g>
+            <circle cx="0" cy="-22" r="6" fill="none" data-fog-ember={0.75 * p.size} />
           </g>
-          <path d="M-1 -43Q-2 -52 4 -56L7 -53Q2 -50 3 -43Z" fill="#2f3a19" />
-          <path
-            d={FACES[p.face]}
-            fill="url(#pk-fire)"
-            className="anim-ember"
-            style={{ animationDuration: `${p.dur}s`, animationDelay: `${p.delay}s` }}
-          />
         </g>
       ))}
     </GroundBox>

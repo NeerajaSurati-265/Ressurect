@@ -10,6 +10,7 @@ import { STATUS_ANNOUNCEMENT } from '../lib/copy'
 import { markLost, rememberResurrection } from '../lib/graveyard'
 import { msUntil } from '../lib/time'
 import { useKeeperScript, type KeeperStep } from '../keeper/store'
+import { emit } from '../fx/events'
 import { AutopsyReport } from '../resurrection/AutopsyReport'
 import { CannotRise } from '../resurrection/CannotRise'
 import { ErrorGhost } from '../resurrection/ErrorGhost'
@@ -33,24 +34,24 @@ function keeperSteps(status: ResurrectionStatus): KeeperStep[] {
   switch (status) {
     case 'summoning':
     case 'building':
-      return [{ mood: 'seance', anchor: 'seance', whisper: 'Listening to the build…' }]
+      return [{ mood: 'seance', anchor: 'seance' }]
     case 'checking_pulse':
-      return [{ mood: 'listening', anchor: 'grave', whisper: 'Listening for a heartbeat…' }]
+      return [{ mood: 'listening', anchor: 'grave' }]
     case 'alive':
       // step back in triumph while the stone splits, then present the live link
       return [
         { mood: 'triumph', anchor: 'grave', hold: 2600 },
-        { mood: 'presenting', anchor: 'result-card', focus: 'visit', whisper: 'Your app is live.' },
+        { mood: 'presenting', anchor: 'result-card', focus: 'visit' },
       ]
     case 'failed':
       return [
         { mood: 'recoil', anchor: 'grave', hold: 1500 },
-        { mood: 'vigil', anchor: 'ghost-card', whisper: 'The cause and the fix are here.' },
+        { mood: 'vigil', anchor: 'ghost-card' },
       ]
     case 'cannot_rise':
-      return [{ mood: 'mourning', anchor: 'cannot-rise', whisper: 'Not this one. Not yet.' }]
+      return [{ mood: 'mourning', anchor: 'cannot-rise' }]
     case 'expired':
-      return [{ mood: 'mourning', anchor: 'grave', whisper: 'Laid to rest.' }]
+      return [{ mood: 'mourning', anchor: 'grave' }]
   }
 }
 
@@ -103,13 +104,35 @@ function ResurrectionScreen({ id }: { id: string }) {
   useKeeperScript(
     keeperGroup,
     keeperGroup === 'barred'
-      ? [{ mood: 'barred', anchor: 'turned-away', whisper: 'The gate is shut.' }]
+      ? [{ mood: 'barred', anchor: 'turned-away' }]
       : keeperGroup === 'rising'
-        ? [{ mood: 'rising', anchor: 'grave', whisper: 'The stone answers.' }]
+        ? [{ mood: 'rising', anchor: 'grave' }]
         : status
           ? keeperSteps(status)
           : [],
   )
+
+  // Tell the score and the Keeper what happened, once per status transition.
+  const emitted = useRef<string | null>(null)
+  useEffect(() => {
+    if (!data || !status || emitted.current === `${data.attempt}:${status}`) return
+    emitted.current = `${data.attempt}:${status}`
+    if (status === 'alive') emit('alive', { live_url: data.live_url })
+    else if (status === 'failed')
+      emit('failed', {
+        cause: data.ghost?.cause ?? '',
+        fix: data.ghost?.fix ?? '',
+        command: data.ghost?.command ?? null,
+        source: data.ghost?.source ?? 'fallback',
+      })
+    else if (status === 'cannot_rise') emit('cannot-rise', { summary: data.autopsy?.summary ?? '' })
+    else if (status === 'expired') emit('expired')
+  }, [data, status])
+
+  // A ritual turned away while loading /r/:id (rate limit, paused, missing grave).
+  useEffect(() => {
+    if (!data && error) emit('turned-away', { code: error.code })
+  }, [data, error])
 
   useEffect(() => {
     if (data) rememberResurrection(status === 'expired' ? { ...data, status: 'expired' } : data)
@@ -157,6 +180,7 @@ function ResurrectionScreen({ id }: { id: string }) {
     try {
       const r = await api.retryResurrection(id)
       setExpiredLocally(false)
+      emit('ritual-start', { repo: `${r.repo.owner}/${r.repo.name}` })
       replace(r)
     } catch (e) {
       setRetryError(toApiRequestError(e))

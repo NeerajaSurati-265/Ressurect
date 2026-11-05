@@ -3,6 +3,8 @@
  * Pooled, dt-based, capped at ~60 fps, sleeps when empty, paused while the tab is hidden,
  * and a no-op under prefers-reduced-motion. Coordinates are viewport CSS pixels.
  */
+import { getQuality } from './quality'
+
 export type ParticlePreset = 'ember' | 'spirit-mote' | 'dirt' | 'smoke' | 'firefly'
 
 export interface EmitOptions {
@@ -54,7 +56,7 @@ function init(p: P, preset: ParticlePreset, x: number, y: number) {
   p.seed = Math.random() * 1000
   switch (preset) {
     case 'ember':
-      p.vx = rand(-30, 30); p.vy = rand(-90, -40); p.maxLife = rand(0.9, 1.8); p.size = rand(1, 2.4); break
+      p.vx = rand(-45, 45); p.vy = rand(-90, -40); p.maxLife = rand(0.9, 1.8); p.size = rand(1, 2.4); break
     case 'spirit-mote':
       p.vx = rand(-12, 12); p.vy = rand(-70, -25); p.maxLife = rand(1.8, 3.4); p.size = rand(1.2, 2.8); break
     case 'dirt':
@@ -70,7 +72,8 @@ function init(p: P, preset: ParticlePreset, x: number, y: number) {
 export function emit(preset: ParticlePreset, opts: EmitOptions) {
   if (!ctx || reduced() || document.visibilityState === 'hidden') return
   const d = DEFAULTS[preset]
-  const n = Math.min(opts.count ?? d.count, 120)
+  // the runtime quality guard halves every burst on slow machines
+  const n = Math.max(1, Math.round(Math.min(opts.count ?? d.count, 120) * (getQuality() === 'low' ? 0.5 : 1)))
   const spread = opts.spread ?? d.spread
   let made = 0
   for (let i = 0; i < MAX && made < n; i++) {

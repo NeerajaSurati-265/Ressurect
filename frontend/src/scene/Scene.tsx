@@ -12,6 +12,9 @@ import { Hills } from './Hills'
 import { useFinePointer, useIsMobile, useReducedMotion } from './hooks'
 import { IronFence } from './IronFence'
 import { MistBand } from './MistBand'
+import { Foreground } from './Foreground'
+import { GodRays } from './GodRays'
+import { useWebglFogActive } from './fogState'
 import { Moon } from './Moon'
 import { ParallaxLayer } from './ParallaxLayer'
 import { Pumpkins } from './Pumpkins'
@@ -31,8 +34,10 @@ export function Scene({ descended = false }: { descended?: boolean }) {
   const interactive = !reduced && !mobile && finePointer
   const visible = usePageVisible()
   const introPlaying = useIntroPlaying()
-  const fromIntro = intro.played
+  const fromIntro = intro.sceneIntro
   const [dim, setDim] = useState(false)
+  // the WebGL fog (FogCanvas, mounted in Layout) replaces the CSS fog while it is rendering
+  const webglFog = useWebglFogActive()
 
   // Every 15-25 s (randomised) a cloud crosses the moon and the scene gently dims.
   useEffect(() => {
@@ -141,13 +146,17 @@ export function Scene({ descended = false }: { descended?: boolean }) {
           <Bats />
         </ParallaxLayer>
       )}
+      {/* moonlight shafts slanting through the trees, added light only */}
+      <ParallaxLayer depth={6} style={{ mixBlendMode: 'screen' }}>
+        <GodRays mobile={mobile} />
+      </ParallaxLayer>
       <ParallaxLayer depth={7}>
         <Hills />
-        <MistBand id="mist-hills" y={262} h={120} alpha={0.2} />
+        <MistBand id="mist-hills" y={262} h={130} alpha={0.13} />
       </ParallaxLayer>
       <ParallaxLayer depth={10}>
-        <DeadTrees mobile={mobile} />
-        <MistBand id="mist-trees" y={368} h={96} alpha={0.13} />
+        <DeadTrees mobile={mobile} reduced={reduced} />
+        <MistBand id="mist-trees" y={360} h={110} alpha={0.1} />
       </ParallaxLayer>
       <ParallaxLayer depth={13}>
         <IronFence />
@@ -157,17 +166,22 @@ export function Scene({ descended = false }: { descended?: boolean }) {
         <Pumpkins mobile={mobile} />
         {!reduced && <Wisps mobile={mobile} paused={!visible} />}
       </ParallaxLayer>
-      {/* intro: fog rolls in from below */}
-      <m.div
-        className="absolute inset-0"
-        initial={fromIntro ? { opacity: 0, y: 50 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={introPlaying ? { duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.3 } : { duration: 0.3 }}
-      >
-        <ParallaxLayer depth={20}>
-          <GroundFog reduced={reduced} />
-        </ParallaxLayer>
-      </m.div>
+      {/* intro: fog rolls in from below (CSS fallback fog; the WebGL fog fades itself in) */}
+      {!webglFog && (
+        <m.div
+          className="absolute inset-0"
+          initial={fromIntro ? { opacity: 0, y: 50 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={introPlaying ? { duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.3 } : { duration: 0.3 }}
+        >
+          <ParallaxLayer depth={20}>
+            <GroundFog reduced={reduced} />
+          </ParallaxLayer>
+        </m.div>
+      )}
+      <ParallaxLayer depth={22}>
+        <Foreground mobile={mobile} />
+      </ParallaxLayer>
       </m.div>
       {/* soft vignette keeps the edges dark and the centre readable */}
       <div

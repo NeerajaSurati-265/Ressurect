@@ -1,4 +1,6 @@
 import type { CreateResurrectionRequest } from '@contracts/types'
+import { useEffect } from 'react'
+import { emit } from '../fx/events'
 import { Button } from '../components/Button'
 import { Graveyard } from '../components/Graveyard'
 import { Hero } from '../components/Hero'
@@ -14,9 +16,12 @@ export function Landing() {
   useKeeperScript(
     error ? 'barred' : 'idle',
     error
-      ? [{ mood: 'barred', anchor: 'turned-away', whisper: 'The gate is shut.' }]
+      ? [{ mood: 'barred', anchor: 'turned-away' }]
       : [{ mood: 'idle', anchor: 'url-input' }],
   )
+  useEffect(() => {
+    emit('landing')
+  }, [])
   const below =
     graves.length > 0 && !error ? (
       <a

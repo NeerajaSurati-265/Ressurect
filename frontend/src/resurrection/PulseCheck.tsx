@@ -2,6 +2,7 @@ import type { LogLine, Pulse } from '@contracts/types'
 import { m, useReducedMotion } from 'framer-motion'
 import { useEffect, type Ref } from 'react'
 import { keeperEvent } from '../keeper/store'
+import { emit } from '../fx/events'
 
 const BEAT =
   'M0 40H70L80 40L88 18L98 62L108 8L118 52L124 40H200L210 40L218 18L228 62L238 8L248 52L254 40H330L340 40L348 18L358 62L368 8L378 52L384 40H460'
@@ -59,6 +60,9 @@ export function PulseCheck({
   const max = pulse?.max_attempts ?? 20
   const reduced = useReducedMotion()
   useHeartbeatCue(!reduced)
+  useEffect(() => {
+    emit('pulse-attempt', { attempt: attempts, max })
+  }, [attempts, max])
   return (
     <section aria-labelledby="pulse-h" className="mist-glass panel-enter rounded-2xl p-5 sm:p-6">
       <h2 id="pulse-h" ref={headingRef} tabIndex={-1} className="font-display text-2xl font-bold text-moon outline-none sm:text-3xl">
