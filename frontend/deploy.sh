@@ -48,7 +48,24 @@ fi
 echo "==> Uploading index.html and other unhashed files (no-cache)"
 aws s3 sync dist/ "s3://$BUCKET/ui/" --delete \
   --exclude "assets/*" \
+  --exclude "intro/*" \
   --cache-control "no-cache"
+
+echo "==> Uploading the intro promo and poster (cached for a day)"
+if [[ -d dist/intro ]]; then
+  if compgen -G "dist/intro/*.mp4" >/dev/null; then
+    aws s3 cp dist/intro "s3://$BUCKET/ui/intro" --recursive \
+      --exclude "*" --include "*.mp4" \
+      --content-type "video/mp4" \
+      --cache-control "public, max-age=86400"
+  fi
+  if compgen -G "dist/intro/*.jpg" >/dev/null; then
+    aws s3 cp dist/intro "s3://$BUCKET/ui/intro" --recursive \
+      --exclude "*" --include "*.jpg" \
+      --content-type "image/jpeg" \
+      --cache-control "public, max-age=86400"
+  fi
+fi
 
 echo "==> Uploading the RIP page"
 rip_tmp="$(mktemp)"

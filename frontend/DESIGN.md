@@ -63,13 +63,13 @@ Taken from Halloween designs on Dribbble: a two-tone palette (night blue against
 ### Art drawn in code
 
 - Sky: gradient from night-950 to night-800, canvas starfield (≤ 150 twinkling stars).
-- Moon: SVG disc with a radial halo; two clouds drift across it.
+- Moon: limb-darkened disc with soft maria, a layered corona and thin moonlit cloud wisps; soft moonlight shafts slant through the trees, and a WebGL ground fog (CSS fallback) is lit cold by the moon and warm by the flames.
 - Layers, back to front: hills, dead trees, wrought-iron fence, tombstones, ground fog. Each layer moves with the pointer by its depth (nearest about 20 px).
 - Fog: 3–4 blurred layers drifting at different speeds, capped at 30 fps.
 - Bats: 5–7 small SVG bats on curved paths at random intervals.
-- Jack-o'-lanterns: 2–3 SVG pumpkins whose carved faces flicker.
+- Jack-o'-lanterns: 2–3 ribbed SVG pumpkins lit from inside by a layered flame that throws flickering light on the soil and nearby stones.
 - The Keeper: an original hooded lantern-bearer at the right edge, faceless with two faint ember eyes, lighting the URL input. No floating skeletal hands or tattered shroud, so it can't be mistaken for a film creature. Hidden on phones.
-- Ghost (error state): a soft sheet-like spirit with ember eyes, bobbing gently.
+- Ghost (error state): a translucent, cold-tinted spirit fraying into a torn hem, with pale eye hollows, drifting gently.
 - Candlelight cursor: a faint warm glow follows the pointer on the landing page.
 
 ### Motion

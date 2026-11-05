@@ -1,0 +1,86 @@
+.sound-toggle__btn {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  background: rgb(10 10 20 / 0.55);
+  border: 1px solid rgb(200 210 230 / 0.16);
+  box-shadow: 0 6px 24px -12px rgb(0 0 0 / 0.8);
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+.sound-toggle__btn:hover {
+  border-color: rgb(200 210 230 / 0.32);
+  background: rgb(14 14 28 / 0.7);
+}
+.sound-toggle__btn:focus-visible {
+  outline: 2px solid var(--color-ember-500, #ff7a1a);
+  outline-offset: 2px;
+}
+.sound-toggle__btn[aria-pressed='true'] {
+  border-color: rgb(255 140 60 / 0.3);
+}
+
+.sound-toggle__lantern {
+  transform-origin: 12px 1px;
+}
+.sound-toggle[data-status='on'] .sound-toggle__lantern {
+  animation: sound-toggle-sway 4.8s ease-in-out infinite;
+}
+.sound-toggle__glow {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.sound-toggle[data-status='on'] .sound-toggle__glow {
+  opacity: 1;
+}
+.sound-toggle[data-status='waiting'] .sound-toggle__glow {
+  opacity: 0.45;
+  animation: sound-toggle-wait 2.4s ease-in-out infinite;
+}
+
+@keyframes sound-toggle-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes sound-toggle-wait {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-toggle[data-status='on'] .sound-toggle__lantern,
+  .sound-toggle[data-status='waiting'] .sound-toggle__glow {
+    animation: none;
+  }
+}
+
+/* volume popover */
+.sound-toggle__pop {
+  z-index: 1;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  background: rgb(10 10 20 / 0.82);
+  border: 1px solid rgb(200 210 230 / 0.18);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.9);
+}
+.sound-toggle__range {
+  accent-color: var(--color-ember-500, #ff7a1a);
+  height: 24px;
+  cursor: pointer;
+}
+.sound-toggle__range:focus-visible {
+  outline: 2px solid var(--color-ember-500, #ff7a1a);
+  outline-offset: 4px;
+  border-radius: 4px;
+}

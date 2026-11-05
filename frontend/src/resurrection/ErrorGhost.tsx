@@ -62,7 +62,7 @@ export function ErrorGhost({
           </dl>
         )}
         {ghost?.command && (
-          <div className="mt-4">
+          <div className="mt-4" data-keeper-focus="command">
             <CopyField label="Command to run" value={ghost.command} />
           </div>
         )}

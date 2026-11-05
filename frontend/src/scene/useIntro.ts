@@ -5,3 +5,8 @@ import { intro } from './intro'
 export function useIntroPlaying(): boolean {
   return useSyncExternalStore(intro.subscribe, intro.playing, () => false)
 }
+
+/** True while the intro waits behind the entry gate (the letters stay hidden). */
+export function useIntroHeld(): boolean {
+  return useSyncExternalStore(intro.subscribe, intro.held, () => false)
+}

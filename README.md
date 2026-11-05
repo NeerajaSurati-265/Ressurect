@@ -83,6 +83,9 @@ assets, publishes the RIP page and invalidates CloudFront. It needs `BUCKET`, `U
   [Special Elite](https://fonts.google.com/specimen/Special+Elite) by Astigmatic.
 - Every illustration (the graveyard, the Keeper, the ghost, tombstones, bats and pumpkins) is original and
   drawn in code with SVG, canvas and CSS. No stock images and no copyrighted characters.
+- Music: by default the ambient score and every sound effect are generated in code with the Web Audio API.
+  To use a licensed track instead, drop it at `frontend/public/audio/theme.mp3` and credit it here:
+  *TITLE* by *ARTIST*, licence *LICENCE* ([link](https://example.com/TRACK-LINK)).
 
 Builds on my earlier project DeployForge ([link](https://github.com/YOUR-GITHUB/DeployForge)). Built during
 Hack-to-Ween: autopsy, stack detection, graveyard UI, error ghosts, live build logs, pulse check, cost

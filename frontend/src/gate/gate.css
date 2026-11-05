@@ -1,0 +1,131 @@
+/* The entry gate: night, slow mist, the promo, the fog canvas. Original, drawn in code. */
+.gate {
+  transition: opacity 600ms ease;
+}
+.gate--fading {
+  opacity: 0;
+  pointer-events: none;
+}
+.gate[data-phase='transition'] {
+  pointer-events: none;
+}
+
+.gate__screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 38%, rgb(40 48 84 / 0.55), transparent 70%),
+    radial-gradient(ellipse 120% 70% at 50% 120%, rgb(18 20 40 / 0.95), transparent 70%),
+    linear-gradient(180deg, #05060d 0%, #0b0d1c 55%, #07080f 100%);
+}
+.gate__screen--gone {
+  visibility: hidden;
+}
+
+.gate__mist {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+}
+.gate__mist span {
+  position: absolute;
+  width: 70vmax;
+  height: 40vmax;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(143 163 199 / 0.16), rgb(52 62 92 / 0.08) 60%, transparent 100%);
+  filter: blur(18px);
+  will-change: transform;
+}
+.gate__mist span:nth-child(1) {
+  left: -10%;
+  top: 55%;
+  animation: gate-mist-a 38s ease-in-out infinite alternate;
+}
+.gate__mist span:nth-child(2) {
+  left: 40%;
+  top: 65%;
+  animation: gate-mist-b 46s ease-in-out infinite alternate;
+}
+.gate__mist span:nth-child(3) {
+  left: 15%;
+  top: 20%;
+  opacity: 0.6;
+  animation: gate-mist-a 54s ease-in-out infinite alternate-reverse;
+}
+@keyframes gate-mist-a {
+  from {
+    transform: translate3d(-6vw, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(10vw, -2vh, 0) scale(1.12);
+  }
+}
+@keyframes gate-mist-b {
+  from {
+    transform: translate3d(6vw, 1vh, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-12vw, -1vh, 0) scale(0.96);
+  }
+}
+
+.gate__quiet:focus-visible,
+.gate__skip:focus-visible {
+  outline: 2px solid var(--color-ember-500, #ff7a1a);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.gate__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #05060d;
+}
+.gate__video--hidden {
+  visibility: hidden;
+}
+
+.gate__skip {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  color: var(--color-bone, #e8e2d4);
+  background: rgb(10 10 20 / 0.6);
+  border: 1px solid rgb(200 210 230 / 0.22);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 400ms ease,
+    border-color 200ms ease;
+}
+.gate__skip--on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.gate__skip:hover {
+  border-color: rgb(255 140 60 / 0.5);
+}
+
+.gate__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate__mist span {
+    animation: none;
+  }
+}

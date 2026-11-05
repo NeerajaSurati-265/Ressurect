@@ -1,5 +1,134 @@
 # Frontend notes
 
+## Audio fix + entry gate (2026-11-05)
+
+**Status:** `npm run build` passes and oxlint is clean on the changed files. Every change is inside `frontend/`,
+with no new dependencies. Nothing is committed.
+
+### Task 1: inaudible audio
+
+**Diagnosis**
+- The main cause was levels and register. The master was capped at 0.35 and the music bus sat at 0.5. The drone's
+  fundamental was D1 (36 Hz) with D2 under a 200 Hz low-pass, which laptop speakers can't play at all. Each pad voice
+  was 0.05 × 0.22 under a 650 Hz low-pass, about -45 dBFS. The heartbeat was 62→36 Hz.
+- The gesture path was already correct (`createEngine()` + `resume()` run inside the click). It is now explicit:
+  `resume()` is the first call in `startAudio()`. The state is logged once: `[resurrect] audio context created: …`
+  and `… after gesture: running`.
+- `theme.mp3` detection was already correct: `hasAsset(url, 'audio/')` requires `content-type` to start with `audio/`.
+- `visibilitychange` could leave the context suspended. On return it called `resume()` without checking the result,
+  never re-armed the gesture retry, and didn't clear a pending `stopAudio` suspend. It now does all three. A
+  `statechange` hook also re-arms the retry if the context is suspended or `interrupted` (iOS) while sound is on.
+
+**Changes**
+- `score.ts`:
+  - The drone is now D3 (147 Hz) triangle + saw and A3 (220 Hz) sine, through a 1.2 kHz low-pass so the harmonics
+    come through. A quiet D2 sub (0.06) is kept as an extra only.
+  - Pad fundamentals are now in MIDI 45–64 (110–330 Hz), with the low-pass at 1.6 kHz (ritual 2.2 kHz), voices at
+    0.13 and the pad level at 0.45.
+  - The heartbeat gained a 110→70 Hz partial and a 180 Hz knock.
+  - The dissonant swell moved up an octave.
+- `engine.ts`: the master now follows a volume pref (`volume^1.5`, default 0.6, which gives about 0.46). The music bus
+  is at 0.85 and the limiter threshold at -6 dB.
+- `prefs.ts`: `volume` is stored in localStorage `resurrect:volume`, inside try/catch.
+- `SoundToggle`: a speaker button next to the lantern opens a popover with a 0–100 slider. It closes on Esc, on an
+  outside click or on blur.
+- `sfx.ts` `playChime()`: a soft 880 Hz bell plays when you switch sound on (toggle, or "Wake the music").
+- Nothing autoplays: audio still starts only from a gesture.
+
+**Check by ear (laptop speakers, system volume at 50%)**. I did not measure levels, as agreed. Listen for:
+- At the default slider (60), the drone and pad should be clearly audible as a hum with chords changing every
+  12–20 s, not just air. If it's too loud or harsh, lower `PAD_LEVEL` (0.45) or the 0.85 music bus first.
+- The chime on "Summon the music" should be soft, not a ding that makes you jump.
+- The heartbeat during the pulse check should be audible as a knock.
+- The slider should run smoothly from silent (0) to loud (100) with no pumping at 100. If it pumps, raise the limiter
+  threshold back toward -10 dB.
+- The promo's voice-over vs. the music: the music should fade in under the reveal, not over the end of the video.
+
+### Task 2: entry gate, promo, fog + lantern transition
+
+**Assets**
+- `public/intro/promo.mp4` was re-encoded with your command (CRF 27, 1920 wide, faststart, AAC 128k). It came out at
+  **1.98 MB (1,982,920 bytes), 1920x1080, 15 s**, under the 5 MB target on the first pass.
+- `public/intro/poster.jpg` is the re-encoded file's first frame, 1280x720, 11 KB.
+
+**Flow**
+- `src/gate/gateState.ts` decides once at load: the gate shows only on `/` with no sessionStorage
+  `resurrect:gate-seen`. It never shows on `/r/:id` or the 404.
+- `src/gate/EntryGate.tsx`:
+  - A misty night screen with the wordmark, "Enter the graveyard" and "Enter in silence". The video preloads only
+    after a `HEAD` confirms `content-type: video/*`, and not at all when `saveData` is on.
+  - "Enter the graveyard" plays the promo with sound and calls `startAudio({ hold: true })` in the same click: the
+    context starts, but the music stays silent until the reveal. "Enter in silence" plays it muted and turns music off.
+  - Skip appears at 1 s; Esc also skips. The video jumps to the transition on `error`, if nothing plays within 3 s, if
+    a stall lasts more than 3 s, or if `play()` is rejected. It retries muted once first if unmuted playback is refused.
+- `src/gate/reveal.ts`: one half-resolution canvas.
+  - 0–1 s: fbm fog rolls in while the video's volume fades.
+  - At 1 s: `gate.release()` lets the Keeper place itself under the fog. Its lantern position is read from
+    `--keeper-lx/ly`, falling back to the URL input, then to 50%/68%.
+  - 1–2.4 s: a warm glow blooms and burns a widening opening with a wobbling, soft-edged rim, while the music fades
+    in (`releaseMusic(1.4)`).
+  - After the reveal, `intro.start()` makes the letters rise and the Keeper says its first line (`greet()`).
+  - With reduced motion it's a 600 ms crossfade instead.
+- `intro.ts` holds the letters intro behind the gate (no double intro). The Scene's own veil/moon intro is skipped in
+  gate sessions. `dialogue.ts` suppresses the landing and idle lines while the gate is up.
+- `deploy.sh`: `intro/*` is excluded from the no-cache sync and uploaded separately with
+  `Cache-Control: public, max-age=86400`, using `video/mp4` for mp4 files and `image/jpeg` for jpg files. Only
+  checked with `bash -n`; it was not run.
+
+**Verified (headless Chrome 151 against a mock build, `vite preview`). All checks passed and there were no console
+errors or exceptions:**
+- The gate shows on the first `/` visit and not after a reload. It never shows on `/r/abc123` or `/nowhere/at/all`.
+- "Enter in silence": the video plays muted, Skip is hidden and then shows after 1 s, Skip runs the transition, the
+  gate is gone after it, the letters rise afterwards, and the music pref stays off.
+- "Enter the graveyard": the video plays unmuted, the music pref is on, and the context is `running` after the click.
+  Esc runs the transition.
+- Phone (390x844): the button is 320x56, and the video fills the screen with `object-fit: cover`.
+- Reduced motion: the crossfade finishes.
+- With `promo.mp4` renamed (preview served `text/html`), the click goes straight to the transition. The file was
+  restored afterwards.
+- A canvas probe confirmed the reveal grows outward from the lantern: lantern point cleared first, centre
+  half-open, corners last.
+
+**Check by eye:**
+- Headless ran at about 3 fps, so judge the fog and reveal smoothness in a real browser.
+- Watch whether the opening's rim reads as smoky rather than as a wobbly circle.
+- Under 640 px the Keeper is hidden, so the light opens from beside the URL input instead.
+
+## Visual critique (STEP 0, 2026-11-04)
+
+Fresh headless captures at 1440x900 and 390x844 are in `screenshots/before/`. This is the senior-designer read.
+It lists the ten things that most make the site look amateur, worst first.
+
+1. **Flat fills with no light direction.** Hills, stones, the Grave and the Keeper's robe are each one or two flat
+   colours. Nothing is lit from the moon side, and nothing has texture, so the scene reads as vector clip art.
+2. **The moon is clip art.** It is a grey disc with polka-dot craters and a cartoon cloud glued to its underside. It
+   casts no light on the clouds, trees or stones, and the top of it is cropped on `/r/:id`.
+3. **There is no atmospheric depth.** The hill silhouettes are hard, no fog volume sits between the layers, and the far
+   and near layers are equally sharp, so it looks like stacked cut-outs. The séance's elliptical mist band reads as a
+   flying saucer.
+4. **The glow hierarchy is missing.** The wordmark, the button, the lantern and the pumpkins share one orange bloom,
+   and the wordmark outshines the only real light source. The moon should be the brightest cold light and the flames
+   the brightest warm light.
+5. **The stones look printed, not carved.** They are uniform rounded rectangles with even outlines. The engraving is
+   flat text, and the crack and moss look like stickers. The Risen light column is a hard-edged teal rectangle.
+6. **The Keeper's whisper is illegible.** About 12 px, blurred and low contrast under the figure (see `séance`, `risen`
+   and `ghost`). It looks like a rendering bug, not narration.
+7. **The trees are uniform vector strokes.** They are a single 1 px weight with clean edges, no bark, no fine twigs and
+   no movement. They are also repeated nearly identically across the width.
+8. **The flames are single shapes.** The pumpkins, candles and lantern each use one path with an opacity flicker.
+   No hot core and no light reaches nearby surfaces, and the pumpkin faces are cartoon.
+9. **The ghost is a cartoon.** It is a soft, round sheet with two orange dots, and those are the same ember eyes as the
+   Keeper's. It reads as a Halloween sticker, not a spirit.
+10. **The edges are unfinished.** On `/r/:id` a hard dark seam crosses the top 36 px (the 60 px scene descent shows bare
+    background). The foreground ground is empty and flat, the fence and stones are cropped at the bottom edge, and
+    fireflies clump into a yellow blob mid-air.
+
+Also noted, though not visual: the page is silent and the Keeper barely speaks, so the state changes land abruptly with
+no narrative beat. The sound and dialogue agents cover this.
+
+Owners: items 1-5 and 7-10 are the realism pass (Agent 3). Item 6 and the narration belong to the Keeper agent
+(Agent 2). Item 10's top seam is the Scene descent (Agent 3).
+
 ## The Keeper as companion (2026-11-04)
 
 - `src/keeper/`: `store.ts` (setKeeper / useKeeperScript / keeperEvent), `placement.ts` (pure solver),

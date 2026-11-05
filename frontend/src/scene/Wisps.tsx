@@ -1,5 +1,6 @@
 import { m } from 'framer-motion'
 import { GroundBox } from './Ground'
+import { PUMPKINS } from './layout'
 
 /** Will-o'-the-wisps drifting low between the tombstones (cold, moon-tinted). */
 const WISPS = [
@@ -9,21 +10,23 @@ const WISPS = [
   { x: 1330, y: 426, dx: -60, dy: -20, dur: 27, delay: 2, mobile: false },
 ]
 
-/** Sparse embers rising from the jack-o'-lanterns (positions match Pumpkins). */
-const EMBERS = [
-  { x: 515, y: 456, dur: 4.6, delay: 0.4, mobile: true },
-  { x: 520, y: 456, dur: 5.8, delay: 3.1, mobile: true },
-  { x: 872, y: 466, dur: 5.2, delay: 1.7, mobile: true },
-  { x: 868, y: 466, dur: 6.4, delay: 4.6, mobile: true },
-  { x: 1235, y: 458, dur: 5.5, delay: 2.4, mobile: false },
-]
+/** Sparse embers rising from the jack-o'-lanterns (positions follow Pumpkins). */
+const EMBERS = PUMPKINS.flatMap((p, n) =>
+  [0, 1].map((k) => ({
+    x: p.x + (k ? 4 : -3),
+    y: p.y - 34 * p.size,
+    dur: 4.6 + n * 0.6 + k * 1.2,
+    delay: 0.4 + n * 1.3 + k * 2.7,
+    mobile: !!p.mobile,
+  })),
+)
 
 export function Wisps({ mobile, paused }: { mobile: boolean; paused: boolean }) {
   if (paused) return null
   const wisps = WISPS.filter((w) => !mobile || w.mobile)
   const embers = EMBERS.filter((e) => !mobile || e.mobile)
   return (
-    <GroundBox>
+    <GroundBox className="fx-own-layer">
       <defs>
         <radialGradient id="wisp-glow">
           <stop offset="0%" stopColor="#eef3ff" stopOpacity="0.9" />

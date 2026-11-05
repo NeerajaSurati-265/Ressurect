@@ -2,6 +2,7 @@ import type { CreateResurrectionRequest } from '@contracts/types'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { emitFrom } from '../fx/particles'
 import { keeperSignal } from '../keeper/keeperSignal'
+import { emit } from '../fx/events'
 import { buttonClass } from './Button'
 import { INVALID_URL_COPY, parseRepoUrl } from '../lib/repoUrl'
 
@@ -18,6 +19,15 @@ export function RepoUrlForm({
   const errorId = useId()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [flare, setFlare] = useState(false)
+  const lastKey = useRef(0)
+  const onKey = () => {
+    keeperSignal.flare()
+    const now = performance.now()
+    if (now - lastKey.current > 150) {
+      lastKey.current = now
+      emit('keystroke')
+    }
+  }
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -50,7 +60,7 @@ export function RepoUrlForm({
           value={value}
           onFocus={() => keeperSignal.focus(true)}
           onBlur={() => keeperSignal.focus(false)}
-          onKeyDown={() => keeperSignal.flare()}
+          onKeyDown={onKey}
           onChange={(e) => {
             setValue(e.target.value)
             if (invalid) setInvalid(false)

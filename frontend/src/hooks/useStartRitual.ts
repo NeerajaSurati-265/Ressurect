@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, toApiRequestError, type ApiRequestError } from '../api'
 import { rememberResurrection } from '../lib/graveyard'
+import { emit } from '../fx/events'
 
 /** POST /resurrections, remember it in the graveyard, then go to /r/:id. */
 export function useStartRitual() {
@@ -19,9 +20,12 @@ export function useStartRitual() {
       try {
         const r = await api.createResurrection(repoUrl)
         rememberResurrection(r)
+        emit('ritual-start', { repo: `${r.repo.owner}/${r.repo.name}` })
         navigate(`/r/${r.id}`, { state: { fresh: true } })
       } catch (e) {
-        setError(toApiRequestError(e))
+        const err = toApiRequestError(e)
+        setError(err)
+        emit('turned-away', { code: err.code })
       } finally {
         inFlight.current = false
         setBusy(false)
