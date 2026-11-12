@@ -5,7 +5,7 @@
 ![Resurrect demo GIF](docs/demo.gif)
 <!-- TODO: record the demo GIF (paste a repo URL → séance → "It lives.") and save it as docs/demo.gif -->
 
-**Live:** https://d16ydepr0q87xj.cloudfront.net/ <!-- TODO: replace with the real UI URL -->
+🪦 Private beta opening soon. Want an invite code? Message me on LinkedIn.<!-- TODO: replace with the real UI URL -->
 
 Every student has a graveyard of GitHub repos: a React project from a course, a portfolio site, a hackathon
 demo that only ever ran on a laptop. Resurrect gives each one a one-click deploy. Paste a public repo link and
